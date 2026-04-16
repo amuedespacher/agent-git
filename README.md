@@ -5,7 +5,7 @@
 `agent-git` is a terminal-native, chat-first Git assistant powered by an LLM agent loop. Instead of memorising subcommands, you describe what you want in plain language and Agent Git reasons about your repository, calls structured Git tools, and asks for your approval before making any changes.
 
 ```
-npx agent-git
+npx @amuedespacher/agent-git
 ```
 
 Run that inside any Git repository to open the interactive UI.
@@ -38,7 +38,7 @@ Write operations (commit, push, branch changes, etc.) are **guarded** — the ag
 ### Via npx (no install)
 
 ```bash
-npx agent-git
+npx @amuedespacher/agent-git
 ```
 
 On first launch without a saved key, the app will walk you through connecting to OpenAI.
@@ -46,7 +46,7 @@ On first launch without a saved key, the app will walk you through connecting to
 ### Global install
 
 ```bash
-npm install -g agent-git
+npm install -g @amuedespacher/agent-git
 agent-git
 ```
 

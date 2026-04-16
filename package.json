@@ -1,5 +1,5 @@
 {
-  "name": "agent-git",
+  "name": "@amuedespacher/agent-git",
   "version": "0.1.0",
   "type": "module",
   "bin": {
