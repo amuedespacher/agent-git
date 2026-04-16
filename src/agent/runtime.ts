@@ -1,0 +1,524 @@
+import { randomUUID } from "node:crypto";
+
+import { z } from "zod";
+
+import { loadConfig } from "../config/index.js";
+import { isGitRepository } from "../git/exec.js";
+import { createGitTools } from "../git/tools.js";
+import type {
+  AppConfig,
+  ChatMessage,
+  PendingApproval,
+  ProviderDecision,
+  RepoSnapshot,
+  RuntimeSnapshot,
+  RuntimeTool,
+  ToolCall,
+  ToolEvent,
+  UiMode,
+} from "../types.js";
+import { HeuristicProvider } from "./heuristicProvider.js";
+import { OpenAIProvider } from "./openaiProvider.js";
+import type { AgentProvider } from "./provider.js";
+
+type Listener = (snapshot: RuntimeSnapshot) => void;
+
+const emptyRepo: RepoSnapshot = {
+  isGitRepo: false,
+  ahead: 0,
+  behind: 0,
+  staged: 0,
+  unstaged: 0,
+  untracked: 0,
+  conflicted: 0,
+  clean: true,
+};
+
+export class AgentRuntime {
+  readonly #cwd: string;
+  readonly #listeners = new Set<Listener>();
+  readonly #messages: ChatMessage[] = [];
+  readonly #toolEvents: ToolEvent[] = [];
+
+  #config: AppConfig | null = null;
+  #provider: AgentProvider | null = null;
+  #busy = false;
+  #mode: UiMode = "chat";
+  #pendingApproval?: PendingApproval;
+  #repo: RepoSnapshot = emptyRepo;
+  #tools: RuntimeTool[] = [];
+
+  constructor(cwd: string) {
+    this.#cwd = cwd;
+  }
+
+  subscribe(listener: Listener): () => void {
+    this.#listeners.add(listener);
+    listener(this.snapshot);
+    return () => this.#listeners.delete(listener);
+  }
+
+  get snapshot(): RuntimeSnapshot {
+    return {
+      messages: [...this.#messages],
+      toolEvents: [...this.#toolEvents].slice(-8),
+      repo: this.#repo,
+      pendingApproval: this.#pendingApproval,
+      busy: this.#busy,
+      mode: this.#mode,
+      config: this.#config ?? {
+        provider: {
+          kind: "heuristic",
+          model: "local-heuristic",
+          apiKeyEnv: "OPENAI_API_KEY",
+        },
+        commitStyle: "conventional",
+        branchPattern: "^(feature|fix|chore|docs|refactor|test)/[a-z0-9._-]+$",
+        safetyLevel: "balanced",
+        verbosity: "normal",
+      },
+      providerLabel: this.#provider?.label ?? "not ready",
+    };
+  }
+
+  async initialize(): Promise<void> {
+    this.#config = await loadConfig(this.#cwd);
+    this.#provider = this.#createProvider(this.#config);
+    this.#tools = this.#buildTools(this.#config);
+
+    const repoDetected = await isGitRepository(this.#cwd);
+
+    if (repoDetected) {
+      this.#repo = (await this.#executeTool(
+        { name: "git_status", args: {} },
+        false,
+      )) as RepoSnapshot;
+      this.#addAssistantMessage(
+        "git-agent is ready. Ask about repo state, staged work, or branch validation.",
+      );
+    } else {
+      this.#repo = emptyRepo;
+      this.#addAssistantMessage(
+        "This directory is not a Git repository yet. Change into a repo before using Git tools.",
+      );
+    }
+
+    this.#emit();
+  }
+
+  setMode(mode: UiMode): void {
+    this.#mode = mode;
+    this.#emit();
+  }
+
+  async refresh(): Promise<void> {
+    if (!this.#tools.length) {
+      return;
+    }
+
+    if (!this.#repo.isGitRepo) {
+      const repoDetected = await isGitRepository(this.#cwd);
+      if (!repoDetected) {
+        this.#addAssistantMessage("Still not inside a Git repository.");
+        this.#emit();
+        return;
+      }
+    }
+
+    await this.#executeTool({ name: "git_status", args: {} }, true);
+    this.#addAssistantMessage("Repository state refreshed.");
+    this.#emit();
+  }
+
+  async submit(input: string): Promise<void> {
+    const trimmed = input.trim();
+    if (!trimmed) {
+      return;
+    }
+
+    if (this.#pendingApproval) {
+      await this.#handleApprovalReply(trimmed);
+      return;
+    }
+
+    if (await this.#handleSlashCommand(trimmed)) {
+      return;
+    }
+
+    this.#messages.push(this.#message("user", trimmed));
+    await this.#runAgentLoop();
+  }
+
+  async resolveApproval(approved: boolean): Promise<void> {
+    if (!this.#pendingApproval) {
+      return;
+    }
+
+    const pending = this.#pendingApproval;
+    this.#pendingApproval = undefined;
+
+    if (!approved) {
+      this.#addAssistantMessage(`Cancelled ${pending.call.name}.`);
+      this.#emit();
+      return;
+    }
+
+    await this.#executeTool(pending.call, true);
+    await this.#runAgentLoop();
+  }
+
+  #createProvider(config: AppConfig): AgentProvider {
+    if (config.provider.kind === "openai") {
+      const apiKey = process.env[config.provider.apiKeyEnv];
+      if (apiKey) {
+        return new OpenAIProvider({
+          apiKey,
+          model: config.provider.model,
+          baseUrl: config.provider.baseUrl,
+        });
+      }
+
+      this.#messages.push(
+        this.#message(
+          "assistant",
+          `Missing ${config.provider.apiKeyEnv}. Falling back to the local heuristic planner.`,
+        ),
+      );
+    }
+
+    return new HeuristicProvider();
+  }
+
+  #buildTools(config: AppConfig): RuntimeTool[] {
+    const gitTools = createGitTools(this.#cwd, config);
+
+    return [
+      {
+        name: "git_status",
+        description:
+          "Inspect repository status, branch divergence, staged work, and branch policy.",
+        risk: "safe",
+        requiresConfirmation: false,
+        inputSchema: gitTools.git_status.schema,
+        jsonSchema: gitTools.git_status.jsonSchema,
+        execute: gitTools.git_status.execute,
+      },
+      {
+        name: "git_diff",
+        description:
+          "Read the current diff from the working tree or the staged index.",
+        risk: "safe",
+        requiresConfirmation: false,
+        inputSchema: gitTools.git_diff.schema,
+        jsonSchema: gitTools.git_diff.jsonSchema,
+        execute: gitTools.git_diff.execute,
+      },
+      {
+        name: "git_log",
+        description: "Read recent commit history.",
+        risk: "safe",
+        requiresConfirmation: false,
+        inputSchema: gitTools.git_log.schema,
+        jsonSchema: gitTools.git_log.jsonSchema,
+        execute: gitTools.git_log.execute,
+      },
+      {
+        name: "git_branch_list",
+        description:
+          "List local branches and their upstream tracking branches.",
+        risk: "safe",
+        requiresConfirmation: false,
+        inputSchema: gitTools.git_branch_list.schema,
+        jsonSchema: gitTools.git_branch_list.jsonSchema,
+        execute: gitTools.git_branch_list.execute,
+      },
+      {
+        name: "git_reflog",
+        description: "Read recent reflog entries for recovery guidance.",
+        risk: "safe",
+        requiresConfirmation: false,
+        inputSchema: gitTools.git_reflog.schema,
+        jsonSchema: gitTools.git_reflog.jsonSchema,
+        execute: gitTools.git_reflog.execute,
+      },
+      {
+        name: "git_validate_branch",
+        description:
+          "Validate a branch name against the configured naming policy.",
+        risk: "safe",
+        requiresConfirmation: false,
+        inputSchema: gitTools.git_validate_branch.schema,
+        jsonSchema: gitTools.git_validate_branch.jsonSchema,
+        execute: gitTools.git_validate_branch.execute,
+      },
+      {
+        name: "git_suggest_commit_message",
+        description:
+          "Generate a commit message suggestion from staged changes.",
+        risk: "safe",
+        requiresConfirmation: false,
+        inputSchema: gitTools.git_suggest_commit_message.schema,
+        jsonSchema: gitTools.git_suggest_commit_message.jsonSchema,
+        execute: gitTools.git_suggest_commit_message.execute,
+      },
+      {
+        name: "git_commit",
+        description: "Create a Git commit using the provided message.",
+        risk: "low",
+        requiresConfirmation: true,
+        inputSchema: gitTools.git_commit.schema,
+        jsonSchema: gitTools.git_commit.jsonSchema,
+        execute: gitTools.git_commit.execute,
+      },
+      {
+        name: "git_branch_create",
+        description: "Create a new branch and optionally switch to it.",
+        risk: "low",
+        requiresConfirmation: true,
+        inputSchema: gitTools.git_branch_create.schema,
+        jsonSchema: gitTools.git_branch_create.jsonSchema,
+        execute: gitTools.git_branch_create.execute,
+      },
+      {
+        name: "git_checkout",
+        description: "Switch the working tree to another branch or commit.",
+        risk: "low",
+        requiresConfirmation: true,
+        inputSchema: gitTools.git_checkout.schema,
+        jsonSchema: gitTools.git_checkout.jsonSchema,
+        execute: gitTools.git_checkout.execute,
+      },
+    ];
+  }
+
+  async #runAgentLoop(): Promise<void> {
+    if (!this.#provider || !this.#config) {
+      return;
+    }
+
+    this.#busy = true;
+    this.#emit();
+
+    for (let step = 0; step < 6; step += 1) {
+      let decision: ProviderDecision;
+
+      try {
+        decision = await this.#provider.decide({
+          config: this.#config,
+          messages: this.#messages,
+          tools: this.#tools,
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        this.#addAssistantMessage(`Provider error: ${message}`);
+        break;
+      }
+
+      if (decision.assistantMessage?.trim()) {
+        this.#addAssistantMessage(decision.assistantMessage.trim());
+      }
+
+      const calls = decision.toolCalls ?? [];
+
+      if (calls.length === 0) {
+        break;
+      }
+
+      for (const call of calls) {
+        const tool = this.#lookupTool(call.name);
+        if (!tool) {
+          this.#addAssistantMessage(`Unknown tool requested: ${call.name}.`);
+          continue;
+        }
+
+        if (tool.requiresConfirmation) {
+          this.#pendingApproval = {
+            call,
+            risk: tool.risk,
+            summary: `Approve ${tool.name} with ${JSON.stringify(call.args)}?`,
+          };
+          this.#recordToolEvent(
+            tool.name,
+            "pending-approval",
+            this.#pendingApproval.summary,
+            tool.risk,
+          );
+          this.#busy = false;
+          this.#emit();
+          return;
+        }
+
+        await this.#executeTool(call, true);
+      }
+    }
+
+    this.#busy = false;
+    this.#emit();
+  }
+
+  async #executeTool(call: ToolCall, emitAfter = true): Promise<unknown> {
+    const tool = this.#lookupTool(call.name);
+
+    if (!tool) {
+      throw new Error(`Tool '${call.name}' is not registered.`);
+    }
+
+    const validatedArgs = validateArgs(tool.inputSchema, call.args);
+    this.#recordToolEvent(
+      tool.name,
+      "started",
+      JSON.stringify(validatedArgs),
+      tool.risk,
+    );
+
+    try {
+      const result = await tool.execute(validatedArgs);
+      const serialized = JSON.stringify(result);
+      this.#messages.push(this.#message("tool", serialized, tool.name));
+      this.#recordToolEvent(
+        tool.name,
+        "completed",
+        summarizeToolResult(result),
+        tool.risk,
+      );
+
+      if (tool.name === "git_status") {
+        this.#repo = result as RepoSnapshot;
+      }
+
+      if (
+        ["git_commit", "git_branch_create", "git_checkout"].includes(tool.name)
+      ) {
+        const statusTool = this.#lookupTool("git_status");
+        if (statusTool) {
+          const statusResult = (await statusTool.execute({})) as RepoSnapshot;
+          this.#repo = statusResult;
+        }
+      }
+
+      if (emitAfter) {
+        this.#emit();
+      }
+
+      return result;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.#recordToolEvent(tool.name, "failed", message, tool.risk);
+      this.#addAssistantMessage(`Tool ${tool.name} failed: ${message}`);
+      this.#busy = false;
+      this.#emit();
+      throw error;
+    }
+  }
+
+  async #handleApprovalReply(input: string): Promise<void> {
+    const normalized = input.trim().toLowerCase();
+
+    if (["y", "yes", "/approve"].includes(normalized)) {
+      await this.resolveApproval(true);
+      return;
+    }
+
+    if (["n", "no", "/reject"].includes(normalized)) {
+      await this.resolveApproval(false);
+      return;
+    }
+
+    this.#addAssistantMessage(
+      "A guarded action is pending. Reply with y or n.",
+    );
+    this.#emit();
+  }
+
+  async #handleSlashCommand(input: string): Promise<boolean> {
+    if (input === "/help") {
+      this.#addAssistantMessage(
+        "Commands: /help, /settings, /chat, /refresh. Ask me about repo status, diffs, branch validation, or staged commits.",
+      );
+      this.#emit();
+      return true;
+    }
+
+    if (input === "/settings") {
+      this.setMode("settings");
+      return true;
+    }
+
+    if (input === "/chat") {
+      this.setMode("chat");
+      return true;
+    }
+
+    if (input === "/refresh") {
+      await this.refresh();
+      return true;
+    }
+
+    return false;
+  }
+
+  #lookupTool(name: string): RuntimeTool | undefined {
+    return this.#tools.find((tool) => tool.name === name);
+  }
+
+  #recordToolEvent(
+    toolName: string,
+    status: ToolEvent["status"],
+    summary: string,
+    risk: ToolEvent["risk"],
+  ): void {
+    this.#toolEvents.push({
+      id: randomUUID(),
+      toolName,
+      status,
+      summary,
+      risk,
+      createdAt: Date.now(),
+    });
+  }
+
+  #message(
+    role: ChatMessage["role"],
+    content: string,
+    toolName?: string,
+  ): ChatMessage {
+    return {
+      id: randomUUID(),
+      role,
+      content,
+      toolName,
+      createdAt: Date.now(),
+    };
+  }
+
+  #addAssistantMessage(content: string): void {
+    this.#messages.push(this.#message("assistant", content));
+  }
+
+  #emit(): void {
+    const snapshot = this.snapshot;
+    for (const listener of this.#listeners) {
+      listener(snapshot);
+    }
+  }
+}
+
+function validateArgs(
+  schema: unknown,
+  args: Record<string, unknown>,
+): Record<string, unknown> {
+  if (schema instanceof z.ZodType) {
+    return schema.parse(args);
+  }
+
+  return args;
+}
+
+function summarizeToolResult(result: unknown): string {
+  if (!result || typeof result !== "object") {
+    return String(result);
+  }
+
+  const json = JSON.stringify(result);
+  return json.length > 140 ? `${json.slice(0, 140)}...` : json;
+}
