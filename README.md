@@ -6,8 +6,7 @@
 
 - Ink-based terminal UI with chat transcript, repo sidebar, and approval prompts
 - Tool-driven runtime with safe/read tools and guarded/write tools
-- Heuristic local planner that works without model credentials
-- Optional OpenAI-backed provider with tool calling
+- OpenAI-native provider with tool calling
 - Branch naming validation and commit-style configuration
 - Commit message suggestion from staged changes
 - Basic decision support for dirty trees and diverged branches
@@ -60,8 +59,8 @@ Example:
 ```json
 {
   "provider": {
-    "kind": "heuristic",
-    "model": "local-heuristic"
+    "kind": "openai",
+    "model": "gpt-4.1-mini"
   },
   "commitStyle": "conventional",
   "branchPattern": "^(feature|fix|chore|docs|refactor|test)/[a-z0-9._-]+$",
@@ -70,9 +69,9 @@ Example:
 }
 ```
 
-To use OpenAI from inside the app, run `/connect-openai`, paste your API key, and let the app test and save the connection for you.
+To use OpenAI from inside the app, run `/connect-openai`, paste your API key, and let the app test and save the connection for you. On first launch without a configured key, the app automatically enters OpenAI setup mode.
 
-You can still configure OpenAI via environment variable by setting `provider.kind` to `openai` and exporting `OPENAI_API_KEY`.
+You can still configure OpenAI via environment variable by exporting `OPENAI_API_KEY`.
 
 ## Suggested prompts
 

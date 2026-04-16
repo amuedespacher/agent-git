@@ -23,7 +23,6 @@ import type {
   ToolEvent,
   UiMode,
 } from "../types.js";
-import { HeuristicProvider } from "./heuristicProvider.js";
 import { OpenAIProvider, testOpenAIConnection } from "./openaiProvider.js";
 import type { AgentProvider } from "./provider.js";
 
@@ -95,6 +94,18 @@ export class AgentRuntime {
     this.#provider = this.#createProvider(this.#config);
     this.#tools = this.#buildTools(this.#config);
 
+    if (!this.#provider) {
+      this.#openAISetup = {
+        ...this.#openAISetup,
+        awaitingKey: true,
+        testing: false,
+        lastError: undefined,
+        lastMessage:
+          "Set up OpenAI to start: paste your API key below and press Enter. Type /cancel to abort.",
+      };
+      this.#mode = "settings";
+    }
+
     const repoDetected = await isGitRepository(this.#cwd);
 
     if (repoDetected) {
@@ -159,6 +170,20 @@ export class AgentRuntime {
       return;
     }
 
+    if (!this.#provider) {
+      this.#openAISetup = {
+        ...this.#openAISetup,
+        awaitingKey: true,
+        testing: false,
+        lastError: undefined,
+        lastMessage:
+          "OpenAI is not configured yet. Paste your API key below and press Enter.",
+      };
+      this.#mode = "settings";
+      this.#emit();
+      return;
+    }
+
     this.#messages.push(this.#message("user", trimmed));
     await this.#runAgentLoop();
   }
@@ -181,27 +206,25 @@ export class AgentRuntime {
     await this.#runAgentLoop();
   }
 
-  #createProvider(config: AppConfig): AgentProvider {
-    if (config.provider.kind === "openai") {
-      const apiKey =
-        config.provider.apiKey ?? process.env[config.provider.apiKeyEnv];
-      if (apiKey) {
-        return new OpenAIProvider({
-          apiKey,
-          model: config.provider.model,
-          baseUrl: config.provider.baseUrl,
-        });
-      }
+  #createProvider(config: AppConfig): AgentProvider | null {
+    const apiKey =
+      config.provider.apiKey ?? process.env[config.provider.apiKeyEnv];
 
+    if (!apiKey) {
       this.#messages.push(
         this.#message(
           "assistant",
-          `Missing an OpenAI API key in the saved config or ${config.provider.apiKeyEnv}. Falling back to the local heuristic planner.`,
+          `Missing an OpenAI API key in saved config or ${config.provider.apiKeyEnv}. Run /connect-openai or paste your key now to continue.`,
         ),
       );
+      return null;
     }
 
-    return new HeuristicProvider();
+    return new OpenAIProvider({
+      apiKey,
+      model: config.provider.model,
+      baseUrl: config.provider.baseUrl,
+    });
   }
 
   #buildTools(config: AppConfig): RuntimeTool[] {
@@ -312,6 +335,15 @@ export class AgentRuntime {
         jsonSchema: gitTools.git_checkout.jsonSchema,
         execute: gitTools.git_checkout.execute,
       },
+      {
+        name: "git_merge",
+        description: "Merge a source branch into the current branch.",
+        risk: "low",
+        requiresConfirmation: true,
+        inputSchema: gitTools.git_merge.schema,
+        jsonSchema: gitTools.git_merge.jsonSchema,
+        execute: gitTools.git_merge.execute,
+      },
     ];
   }
 
@@ -416,6 +448,7 @@ export class AgentRuntime {
           "git_stage_all",
           "git_branch_create",
           "git_checkout",
+          "git_merge",
         ].includes(tool.name)
       ) {
         const statusTool = this.#lookupTool("git_status");
@@ -515,11 +548,7 @@ export class AgentRuntime {
 
     const key = input.trim();
     const currentConfig = this.#config ?? defaultConfig;
-    const model =
-      currentConfig.provider.kind === "openai" &&
-      currentConfig.provider.model !== "local-heuristic"
-        ? currentConfig.provider.model
-        : defaultOpenAIModel;
+    const model = currentConfig.provider.model || defaultOpenAIModel;
 
     this.#openAISetup = {
       ...this.#openAISetup,

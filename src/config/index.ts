@@ -16,15 +16,15 @@ type ConfigInput = Partial<AppConfig> & {
 const configSchema = z.object({
   provider: z
     .object({
-      kind: z.enum(["heuristic", "openai"]).default("heuristic"),
-      model: z.string().min(1).default("local-heuristic"),
+      kind: z.enum(["openai"]).default("openai"),
+      model: z.string().min(1).default(defaultOpenAIModel),
       apiKeyEnv: z.string().min(1).default("OPENAI_API_KEY"),
       apiKey: z.string().min(1).optional(),
       baseUrl: z.string().url().optional(),
     })
     .default({
-      kind: "heuristic",
-      model: "local-heuristic",
+      kind: "openai",
+      model: defaultOpenAIModel,
       apiKeyEnv: "OPENAI_API_KEY",
     }),
   commitStyle: z.enum(["conventional", "sentence"]).default("conventional"),
@@ -83,12 +83,32 @@ export function mergeConfigLayers(...layers: Array<unknown>): AppConfig {
         ...(current.provider && typeof current.provider === "object"
           ? current.provider
           : {}),
-        ...(((layer as ConfigInput).provider ?? {}) as Record<string, unknown>),
+        ...normalizeProviderInput(
+          ((layer as ConfigInput).provider ?? {}) as Record<string, unknown>,
+        ),
       },
     };
   }, {});
 
   return configSchema.parse(merged);
+}
+
+function normalizeProviderInput(
+  provider: Record<string, unknown>,
+): Record<string, unknown> {
+  if (provider.kind === "heuristic") {
+    return {
+      ...provider,
+      kind: "openai",
+      model:
+        typeof provider.model === "string" &&
+        provider.model !== "local-heuristic"
+          ? provider.model
+          : defaultOpenAIModel,
+    };
+  }
+
+  return provider;
 }
 
 async function loadUserConfig(): Promise<ConfigInput | undefined> {

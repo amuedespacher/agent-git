@@ -2,7 +2,7 @@ export type SafetyLevel = "strict" | "balanced" | "permissive";
 export type RiskLevel = "safe" | "low" | "high";
 export type CommitStyle = "conventional" | "sentence";
 export type Verbosity = "minimal" | "normal" | "detailed";
-export type ProviderKind = "heuristic" | "openai";
+export type ProviderKind = "openai";
 export type UiMode = "chat" | "settings";
 
 export interface ProviderConfig {

@@ -30,6 +30,10 @@ const checkoutArgsSchema = z.object({
   target: z.string().min(1),
 });
 
+const mergeArgsSchema = z.object({
+  source: z.string().min(1),
+});
+
 export function createGitTools(cwd: string, config: AppConfig) {
   return {
     git_status: {
@@ -159,6 +163,19 @@ export function createGitTools(cwd: string, config: AppConfig) {
       execute: async (args: Record<string, unknown>) => {
         const parsed = checkoutArgsSchema.parse(args);
         return checkout(cwd, parsed.target);
+      },
+    },
+    git_merge: {
+      schema: mergeArgsSchema,
+      jsonSchema: {
+        type: "object",
+        properties: { source: { type: "string" } },
+        required: ["source"],
+        additionalProperties: false,
+      },
+      execute: async (args: Record<string, unknown>) => {
+        const parsed = mergeArgsSchema.parse(args);
+        return merge(cwd, parsed.source);
       },
     },
   };
@@ -341,6 +358,11 @@ export async function createBranch(
 export async function checkout(cwd: string, target: string) {
   const output = await runGit(cwd, ["checkout", target]);
   return { target, output };
+}
+
+export async function merge(cwd: string, source: string) {
+  const output = await runGit(cwd, ["merge", source]);
+  return { source, output };
 }
 
 export interface ParsedPorcelainStatus {

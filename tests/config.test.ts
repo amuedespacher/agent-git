@@ -43,4 +43,16 @@ describe("mergeConfigLayers", () => {
     expect(merged.provider.model).toBe("gpt-4.1");
     expect(merged.provider.apiKey).toBe("saved-key");
   });
+
+  it("migrates legacy heuristic provider config to openai", () => {
+    const merged = mergeConfigLayers(defaultConfig, {
+      provider: {
+        kind: "heuristic",
+        model: "local-heuristic",
+      },
+    });
+
+    expect(merged.provider.kind).toBe("openai");
+    expect(merged.provider.model).toBe(defaultOpenAIModel);
+  });
 });

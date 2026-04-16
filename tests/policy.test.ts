@@ -39,7 +39,7 @@ describe("suggestCommitMessage", () => {
     const message = suggestCommitMessage({
       branchName: "feature/openai-integration",
       files: [
-        "src/agent/heuristicProvider.ts",
+        "src/agent/openaiProvider.ts",
         "src/agent/runtime.ts",
         "src/git/tools.ts",
       ],
@@ -56,14 +56,14 @@ describe("suggestCommitMessage", () => {
     const message = suggestCommitMessage({
       branchName: "feature/openai-integration",
       files: [
-        "src/agent/heuristicProvider.ts",
+        "src/agent/openaiProvider.ts",
         "src/agent/runtime.ts",
         "src/git/tools.ts",
       ],
       style: "conventional",
     });
 
-    expect(message).toBe("feat: update heuristicProvider, runtime, and tools");
+    expect(message).toBe("feat: update openaiProvider, runtime, and tools");
   });
 });
 
