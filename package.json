@@ -1,8 +1,10 @@
 {
   "name": "drgit",
   "version": "0.0.1",
-  "private": true,
   "type": "module",
+  "files": [
+    "dist"
+  ],
   "bin": {
     "drgit": "dist/index.js"
   },
@@ -10,6 +12,7 @@
     "build": "tsc -p tsconfig.json",
     "dev": "tsx src/index.tsx",
     "install:cli": "npm run build && npm link",
+    "prepublishOnly": "npm run build",
     "start": "node dist/index.js",
     "test": "vitest run",
     "unlink:cli": "npm unlink -g drgit"
