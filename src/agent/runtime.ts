@@ -2,7 +2,13 @@ import { randomUUID } from "node:crypto";
 
 import { z } from "zod";
 
-import { loadConfig } from "../config/index.js";
+import {
+  defaultConfig,
+  defaultOpenAIModel,
+  getUserConfigPath,
+  loadConfig,
+  saveUserConfig,
+} from "../config/index.js";
 import { isGitRepository } from "../git/exec.js";
 import { createGitTools } from "../git/tools.js";
 import type {
@@ -18,10 +24,11 @@ import type {
   UiMode,
 } from "../types.js";
 import { HeuristicProvider } from "./heuristicProvider.js";
-import { OpenAIProvider } from "./openaiProvider.js";
+import { OpenAIProvider, testOpenAIConnection } from "./openaiProvider.js";
 import type { AgentProvider } from "./provider.js";
 
 type Listener = (snapshot: RuntimeSnapshot) => void;
+type OpenAISetupState = RuntimeSnapshot["openAISetup"];
 
 const emptyRepo: RepoSnapshot = {
   isGitRepo: false,
@@ -32,6 +39,13 @@ const emptyRepo: RepoSnapshot = {
   untracked: 0,
   conflicted: 0,
   clean: true,
+};
+
+const defaultOpenAISetup: OpenAISetupState = {
+  awaitingKey: false,
+  testing: false,
+  hasStoredKey: false,
+  configPath: getUserConfigPath(),
 };
 
 export class AgentRuntime {
@@ -47,6 +61,7 @@ export class AgentRuntime {
   #pendingApproval?: PendingApproval;
   #repo: RepoSnapshot = emptyRepo;
   #tools: RuntimeTool[] = [];
+  #openAISetup = defaultOpenAISetup;
 
   constructor(cwd: string) {
     this.#cwd = cwd;
@@ -66,23 +81,15 @@ export class AgentRuntime {
       pendingApproval: this.#pendingApproval,
       busy: this.#busy,
       mode: this.#mode,
-      config: this.#config ?? {
-        provider: {
-          kind: "heuristic",
-          model: "local-heuristic",
-          apiKeyEnv: "OPENAI_API_KEY",
-        },
-        commitStyle: "conventional",
-        branchPattern: "^(feature|fix|chore|docs|refactor|test)/[a-z0-9._-]+$",
-        safetyLevel: "balanced",
-        verbosity: "normal",
-      },
+      config: this.#config ?? defaultConfig,
       providerLabel: this.#provider?.label ?? "not ready",
+      openAISetup: this.#openAISetup,
     };
   }
 
   async initialize(): Promise<void> {
     this.#config = await loadConfig(this.#cwd);
+    this.#syncOpenAISetup();
     this.#provider = this.#createProvider(this.#config);
     this.#tools = this.#buildTools(this.#config);
 
@@ -94,12 +101,12 @@ export class AgentRuntime {
         false,
       )) as RepoSnapshot;
       this.#addAssistantMessage(
-        "git-agent is ready. Ask about repo state, staged work, or branch validation.",
+        "git-agent is ready. Ask about repo state, staged work, branch validation, or run /connect-openai to configure OpenAI.",
       );
     } else {
       this.#repo = emptyRepo;
       this.#addAssistantMessage(
-        "This directory is not a Git repository yet. Change into a repo before using Git tools.",
+        "This directory is not a Git repository yet. Change into a repo before using Git tools, or run /connect-openai to configure OpenAI first.",
       );
     }
 
@@ -141,6 +148,11 @@ export class AgentRuntime {
       return;
     }
 
+    if (this.#openAISetup.awaitingKey) {
+      await this.#handleOpenAIKeyInput(trimmed);
+      return;
+    }
+
     if (await this.#handleSlashCommand(trimmed)) {
       return;
     }
@@ -169,7 +181,8 @@ export class AgentRuntime {
 
   #createProvider(config: AppConfig): AgentProvider {
     if (config.provider.kind === "openai") {
-      const apiKey = process.env[config.provider.apiKeyEnv];
+      const apiKey =
+        config.provider.apiKey ?? process.env[config.provider.apiKeyEnv];
       if (apiKey) {
         return new OpenAIProvider({
           apiKey,
@@ -181,7 +194,7 @@ export class AgentRuntime {
       this.#messages.push(
         this.#message(
           "assistant",
-          `Missing ${config.provider.apiKeyEnv}. Falling back to the local heuristic planner.`,
+          `Missing an OpenAI API key in the saved config or ${config.provider.apiKeyEnv}. Falling back to the local heuristic planner.`,
         ),
       );
     }
@@ -433,7 +446,7 @@ export class AgentRuntime {
   async #handleSlashCommand(input: string): Promise<boolean> {
     if (input === "/help") {
       this.#addAssistantMessage(
-        "Commands: /help, /settings, /chat, /refresh. Ask me about repo status, diffs, branch validation, or staged commits.",
+        "Commands: /help, /settings, /chat, /refresh, /connect-openai. Ask me about repo status, diffs, branch validation, or staged commits.",
       );
       this.#emit();
       return true;
@@ -454,7 +467,99 @@ export class AgentRuntime {
       return true;
     }
 
+    if (input === "/connect-openai") {
+      this.#openAISetup = {
+        ...this.#openAISetup,
+        awaitingKey: true,
+        testing: false,
+        lastError: undefined,
+        lastMessage:
+          "Paste your OpenAI API key and press Enter. The connection will be tested and then saved to the user config file. Type /cancel to abort.",
+      };
+      this.#mode = "settings";
+      this.#emit();
+      return true;
+    }
+
     return false;
+  }
+
+  async #handleOpenAIKeyInput(input: string): Promise<void> {
+    if (input === "/cancel") {
+      this.#openAISetup = {
+        ...this.#openAISetup,
+        awaitingKey: false,
+        testing: false,
+        lastMessage: "OpenAI setup cancelled.",
+        lastError: undefined,
+      };
+      this.#emit();
+      return;
+    }
+
+    const key = input.trim();
+    const currentConfig = this.#config ?? defaultConfig;
+    const model =
+      currentConfig.provider.kind === "openai" &&
+      currentConfig.provider.model !== "local-heuristic"
+        ? currentConfig.provider.model
+        : defaultOpenAIModel;
+
+    this.#openAISetup = {
+      ...this.#openAISetup,
+      testing: true,
+      lastError: undefined,
+      lastMessage: "Testing OpenAI connection...",
+    };
+    this.#busy = true;
+    this.#emit();
+
+    try {
+      const connection = await testOpenAIConnection({
+        apiKey: key,
+        model,
+        baseUrl: currentConfig.provider.baseUrl,
+      });
+
+      await saveUserConfig({
+        provider: {
+          kind: "openai",
+          model,
+          apiKeyEnv: currentConfig.provider.apiKeyEnv,
+          baseUrl: currentConfig.provider.baseUrl,
+          apiKey: key,
+        },
+      });
+
+      this.#config = await loadConfig(this.#cwd);
+      this.#provider = this.#createProvider(this.#config);
+      this.#tools = this.#buildTools(this.#config);
+      this.#syncOpenAISetup();
+      const successMessage = connection.modelAvailable
+        ? `Connected to OpenAI and saved your key. Active model: ${model}.`
+        : `Connected to OpenAI and saved your key. The key is valid, but ${model} is not listed in your visible models.`;
+      this.#openAISetup = {
+        ...this.#openAISetup,
+        awaitingKey: false,
+        testing: false,
+        lastError: undefined,
+        lastMessage: successMessage,
+      };
+      this.#addAssistantMessage(successMessage);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.#openAISetup = {
+        ...this.#openAISetup,
+        awaitingKey: true,
+        testing: false,
+        lastError: message,
+        lastMessage: undefined,
+      };
+      this.#addAssistantMessage(`OpenAI connection failed: ${message}`);
+    }
+
+    this.#busy = false;
+    this.#emit();
   }
 
   #lookupTool(name: string): RuntimeTool | undefined {
@@ -493,6 +598,20 @@ export class AgentRuntime {
 
   #addAssistantMessage(content: string): void {
     this.#messages.push(this.#message("assistant", content));
+  }
+
+  #syncOpenAISetup(): void {
+    const config = this.#config ?? defaultConfig;
+
+    this.#openAISetup = {
+      ...this.#openAISetup,
+      hasStoredKey: Boolean(config.provider.apiKey),
+      lastError: undefined,
+      lastMessage:
+        config.provider.kind === "openai" && config.provider.apiKey
+          ? `OpenAI is configured with model ${config.provider.model}.`
+          : undefined,
+    };
   }
 
   #emit(): void {

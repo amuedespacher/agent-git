@@ -54,6 +54,27 @@ export class OpenAIProvider implements AgentProvider {
   }
 }
 
+export async function testOpenAIConnection(options: {
+  apiKey: string;
+  model: string;
+  baseUrl?: string;
+}) {
+  const client = new OpenAI({
+    apiKey: options.apiKey,
+    baseURL: options.baseUrl,
+  });
+
+  const models = await client.models.list();
+  const availableModels = models.data.map((model) => model.id);
+
+  return {
+    ok: true,
+    model: options.model,
+    modelAvailable: availableModels.includes(options.model),
+    availableModels,
+  };
+}
+
 function toOpenAIMessages(request: ProviderRequest) {
   const systemPrompt = buildSystemPrompt(request.tools);
   return [

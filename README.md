@@ -45,6 +45,7 @@ npm run dev
 - `git-agent --version` prints the installed version
 - `/help` shows available chat patterns and slash commands
 - `/settings` opens the settings panel
+- `/connect-openai` prompts for an OpenAI API key, tests it, and saves it
 - `/chat` returns to the chat panel
 - `/refresh` refreshes repository state
 
@@ -69,7 +70,9 @@ Example:
 }
 ```
 
-To use OpenAI, set `provider.kind` to `openai` and export `OPENAI_API_KEY`.
+To use OpenAI from inside the app, run `/connect-openai`, paste your API key, and let the app test and save the connection for you.
+
+You can still configure OpenAI via environment variable by setting `provider.kind` to `openai` and exporting `OPENAI_API_KEY`.
 
 ## Suggested prompts
 

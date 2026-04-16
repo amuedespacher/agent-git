@@ -1,7 +1,17 @@
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+
 import { cosmiconfig } from "cosmiconfig";
 import { z } from "zod";
 
 import type { AppConfig } from "../types.js";
+
+export const defaultOpenAIModel = "gpt-4.1-mini";
+
+type ConfigInput = Partial<AppConfig> & {
+  provider?: Partial<AppConfig["provider"]>;
+};
 
 const configSchema = z.object({
   provider: z
@@ -9,6 +19,7 @@ const configSchema = z.object({
       kind: z.enum(["heuristic", "openai"]).default("heuristic"),
       model: z.string().min(1).default("local-heuristic"),
       apiKeyEnv: z.string().min(1).default("OPENAI_API_KEY"),
+      apiKey: z.string().min(1).optional(),
       baseUrl: z.string().url().optional(),
     })
     .default({
@@ -27,13 +38,79 @@ const configSchema = z.object({
 
 export const defaultConfig: AppConfig = configSchema.parse({});
 
+export function getUserConfigPath(): string {
+  return path.join(os.homedir(), ".git-agent", "config.json");
+}
+
 export async function loadConfig(cwd: string): Promise<AppConfig> {
+  const userConfig = await loadUserConfig();
   const explorer = cosmiconfig("git-agent");
   const result = await explorer.search(cwd);
 
-  if (!result?.config) {
-    return defaultConfig;
-  }
+  return mergeConfigLayers(defaultConfig, userConfig, result?.config);
+}
 
-  return configSchema.parse(result.config);
+export async function saveUserConfig(
+  configPatch: ConfigInput,
+): Promise<AppConfig> {
+  const existingConfig = await loadUserConfig();
+  const nextConfig = mergeConfigLayers(
+    defaultConfig,
+    existingConfig,
+    configPatch,
+  );
+  const filePath = getUserConfigPath();
+
+  await mkdir(path.dirname(filePath), { recursive: true });
+  await writeFile(filePath, `${JSON.stringify(nextConfig, null, 2)}\n`, {
+    encoding: "utf8",
+    mode: 0o600,
+  });
+
+  return nextConfig;
+}
+
+export function mergeConfigLayers(...layers: Array<unknown>): AppConfig {
+  const merged = layers.reduce<Record<string, unknown>>((current, layer) => {
+    if (!layer || typeof layer !== "object") {
+      return current;
+    }
+
+    return {
+      ...current,
+      ...layer,
+      provider: {
+        ...(current.provider && typeof current.provider === "object"
+          ? current.provider
+          : {}),
+        ...(((layer as ConfigInput).provider ?? {}) as Record<string, unknown>),
+      },
+    };
+  }, {});
+
+  return configSchema.parse(merged);
+}
+
+async function loadUserConfig(): Promise<ConfigInput | undefined> {
+  const filePath = getUserConfigPath();
+
+  try {
+    const raw = await readFile(filePath, "utf8");
+    return JSON.parse(raw) as ConfigInput;
+  } catch (error) {
+    if (isFileMissingError(error)) {
+      return undefined;
+    }
+
+    throw error;
+  }
+}
+
+function isFileMissingError(error: unknown): error is NodeJS.ErrnoException {
+  return Boolean(
+    error &&
+    typeof error === "object" &&
+    "code" in error &&
+    error.code === "ENOENT",
+  );
 }

@@ -44,6 +44,7 @@ export function App({ cwd }: AppProps) {
         onSubmit={submit}
         pendingApproval={Boolean(snapshot.pendingApproval)}
         busy={snapshot.busy}
+        awaitingOpenAIKey={snapshot.openAISetup.awaitingKey}
       />
     </Box>
   );
@@ -186,10 +187,32 @@ function SettingsPanel({ snapshot }: { snapshot: RuntimeSnapshot }) {
       <Text color="yellow">Settings</Text>
       <Text>provider: {snapshot.config.provider.kind}</Text>
       <Text>model: {snapshot.config.provider.model}</Text>
+      <Text>
+        openai key: {snapshot.openAISetup.hasStoredKey ? "saved" : "not saved"}
+      </Text>
+      <Text>config file: {snapshot.openAISetup.configPath}</Text>
       <Text>commit style: {snapshot.config.commitStyle}</Text>
       <Text>safety level: {snapshot.config.safetyLevel}</Text>
       <Text>branch pattern: {snapshot.config.branchPattern}</Text>
       <Text>verbosity: {snapshot.config.verbosity}</Text>
+      {snapshot.openAISetup.lastMessage ? (
+        <Text color="green">{snapshot.openAISetup.lastMessage}</Text>
+      ) : null}
+      {snapshot.openAISetup.lastError ? (
+        <Text color="red">
+          connection error: {snapshot.openAISetup.lastError}
+        </Text>
+      ) : null}
+      {snapshot.openAISetup.awaitingKey ? (
+        <Text color="yellow">
+          Paste your OpenAI API key below and press Enter. Type /cancel to
+          abort.
+        </Text>
+      ) : (
+        <Text color="gray">
+          Use /connect-openai to enter and test an OpenAI API key.
+        </Text>
+      )}
       <Text color="gray">Use /chat to return to the conversation.</Text>
     </Box>
   );
@@ -201,20 +224,27 @@ function Footer({
   onSubmit,
   pendingApproval,
   busy,
+  awaitingOpenAIKey,
 }: {
   input: string;
   onChange: (value: string) => void;
   onSubmit: () => Promise<void>;
   pendingApproval: boolean;
   busy: boolean;
+  awaitingOpenAIKey: boolean;
 }) {
-  const prompt = pendingApproval ? "approve> " : "chat> ";
+  const prompt = awaitingOpenAIKey
+    ? "openai-key> "
+    : pendingApproval
+      ? "approve> "
+      : "chat> ";
 
   return (
     <Box borderStyle="round" borderColor="cyan" marginTop={1} paddingX={1}>
       <Text color="cyan">{prompt}</Text>
       <TextInput
         value={input}
+        mask={awaitingOpenAIKey ? "*" : undefined}
         onChange={onChange}
         onSubmit={() => void onSubmit()}
       />

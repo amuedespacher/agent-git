@@ -9,6 +9,7 @@ export interface ProviderConfig {
   kind: ProviderKind;
   model: string;
   apiKeyEnv: string;
+  apiKey?: string;
   baseUrl?: string;
 }
 
@@ -75,6 +76,14 @@ export interface RuntimeSnapshot {
   mode: UiMode;
   config: AppConfig;
   providerLabel: string;
+  openAISetup: {
+    awaitingKey: boolean;
+    testing: boolean;
+    hasStoredKey: boolean;
+    configPath: string;
+    lastMessage?: string;
+    lastError?: string;
+  };
 }
 
 export interface ProviderDecision {
