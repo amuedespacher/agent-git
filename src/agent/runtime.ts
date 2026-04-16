@@ -269,12 +269,21 @@ export class AgentRuntime {
       {
         name: "git_suggest_commit_message",
         description:
-          "Generate a commit message suggestion from staged changes.",
+          "Generate a commit message suggestion from staged changes, or unstaged changes when none are staged yet.",
         risk: "safe",
         requiresConfirmation: false,
         inputSchema: gitTools.git_suggest_commit_message.schema,
         jsonSchema: gitTools.git_suggest_commit_message.jsonSchema,
         execute: gitTools.git_suggest_commit_message.execute,
+      },
+      {
+        name: "git_stage_all",
+        description: "Stage all tracked and untracked changes.",
+        risk: "safe",
+        requiresConfirmation: false,
+        inputSchema: gitTools.git_stage_all.schema,
+        jsonSchema: gitTools.git_stage_all.jsonSchema,
+        execute: gitTools.git_stage_all.execute,
       },
       {
         name: "git_commit",
@@ -402,7 +411,12 @@ export class AgentRuntime {
       }
 
       if (
-        ["git_commit", "git_branch_create", "git_checkout"].includes(tool.name)
+        [
+          "git_commit",
+          "git_stage_all",
+          "git_branch_create",
+          "git_checkout",
+        ].includes(tool.name)
       ) {
         const statusTool = this.#lookupTool("git_status");
         if (statusTool) {

@@ -110,6 +110,15 @@ export function createGitTools(cwd: string, config: AppConfig) {
       },
       execute: async () => suggestCommit(cwd, config),
     },
+    git_stage_all: {
+      schema: z.object({}),
+      jsonSchema: {
+        type: "object",
+        properties: {},
+        additionalProperties: false,
+      },
+      execute: async () => stageAll(cwd),
+    },
     git_commit: {
       schema: commitArgsSchema,
       jsonSchema: {
@@ -162,6 +171,16 @@ export async function getStatus(
   const root = await runGit(cwd, ["rev-parse", "--show-toplevel"]);
   const porcelain = await runGit(cwd, ["status", "--porcelain=v2", "--branch"]);
   const parsed = parsePorcelainV2(porcelain);
+  const stagedFiles = splitLines(
+    await runGit(cwd, ["diff", "--cached", "--name-only"]),
+  );
+  const unstagedTrackedFiles = splitLines(
+    await runGit(cwd, ["diff", "--name-only"]),
+  );
+  const untrackedFiles = splitLines(
+    await runGit(cwd, ["ls-files", "--others", "--exclude-standard"]),
+  );
+  const unstagedFiles = dedupe([...unstagedTrackedFiles, ...untrackedFiles]);
   const branchValidation = parsed.branch
     ? validateBranchName(parsed.branch, config.branchPattern)
     : undefined;
@@ -185,8 +204,8 @@ export async function getStatus(
     branchValid: branchValidation?.valid,
     branchValidationMessage: branchValidation?.message,
     branchSuggestion: branchValidation?.suggestion,
-    stagedFiles: parsed.stagedFiles,
-    unstagedFiles: parsed.unstagedFiles,
+    stagedFiles,
+    unstagedFiles,
   };
 }
 
@@ -276,6 +295,17 @@ export async function suggestCommit(cwd: string, config: AppConfig) {
       files,
       style: config.commitStyle,
     }),
+  };
+}
+
+export async function stageAll(cwd: string) {
+  await runGit(cwd, ["add", "--all"]);
+  const stagedFiles = splitLines(
+    await runGit(cwd, ["diff", "--cached", "--name-only"]),
+  );
+  return {
+    staged: stagedFiles.length,
+    stagedFiles,
   };
 }
 
@@ -402,4 +432,15 @@ function truncateLines(text: string, maxLines: number): string {
   }
 
   return `${lines.slice(0, maxLines).join("\n")}\n... truncated ${lines.length - maxLines} more lines`;
+}
+
+function splitLines(text: string): string[] {
+  return text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function dedupe(items: string[]): string[] {
+  return [...new Set(items)];
 }

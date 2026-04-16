@@ -125,7 +125,8 @@ export class HeuristicProvider implements AgentProvider {
         ) {
           return {
             assistantMessage:
-              "There are no staged changes to commit yet. Stage the files you want included, then ask me to commit again.",
+              "I will stage your current changes first, then suggest a commit message and ask for final approval before committing.",
+            toolCalls: [{ name: "git_stage_all", args: {} }],
           };
         }
       }
@@ -140,6 +141,21 @@ export class HeuristicProvider implements AgentProvider {
       return {
         assistantMessage: `Prepared commit message: ${message}. Approve to create the commit.`,
         toolCalls: [{ name: "git_commit", args: { message } }],
+      };
+    }
+
+    if (toolName === "git_stage_all" && payload) {
+      const staged = Number(payload.staged ?? 0);
+      const stagedFiles = Array.isArray(payload.stagedFiles)
+        ? payload.stagedFiles.length
+        : 0;
+      return {
+        assistantMessage:
+          staged > 0
+            ? `Staged ${stagedFiles} files. I will prepare a commit message suggestion now.`
+            : "No changes were staged.",
+        toolCalls:
+          staged > 0 ? [{ name: "git_suggest_commit_message", args: {} }] : [],
       };
     }
 
