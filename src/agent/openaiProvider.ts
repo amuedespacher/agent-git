@@ -110,6 +110,12 @@ function buildSystemPrompt(tools: RuntimeTool[]): string {
     "Use tools to inspect repository state before suggesting risky actions.",
     "Prefer safe, explainable steps.",
     "Only call write tools when the action is directly requested or clearly required.",
+    "",
+    "After completing user requests, always suggest relevant next steps or actions.",
+    "For example, after a commit, suggest pushing or checking status.",
+    "After staging, suggest reviewing the diff or committing.",
+    "Keep suggestions brief and actionable.",
+    "",
     "Available tools:",
     toolList,
   ].join("\n");

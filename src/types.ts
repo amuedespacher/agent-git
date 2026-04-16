@@ -19,6 +19,10 @@ export interface AppConfig {
   branchPattern: string;
   safetyLevel: SafetyLevel;
   verbosity: Verbosity;
+  uiLabels: {
+    assistant: string;
+    user: string;
+  };
 }
 
 export interface RepoSnapshot {

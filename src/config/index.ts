@@ -34,6 +34,15 @@ const configSchema = z.object({
     .default("^(feature|fix|chore|docs|refactor|test)/[a-z0-9._-]+$"),
   safetyLevel: z.enum(["strict", "balanced", "permissive"]).default("balanced"),
   verbosity: z.enum(["minimal", "normal", "detailed"]).default("normal"),
+  uiLabels: z
+    .object({
+      assistant: z.string().default("dr. git"),
+      user: z.string().default("me"),
+    })
+    .default({
+      assistant: "dr. git",
+      user: "me",
+    }),
 });
 
 export const defaultConfig: AppConfig = configSchema.parse({});

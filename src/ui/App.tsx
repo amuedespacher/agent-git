@@ -168,32 +168,36 @@ function MainPanel({ snapshot }: { snapshot: RuntimeSnapshot }) {
       flexDirection="column"
     >
       <Text color="white">Chat</Text>
-      {snapshot.messages
-        .slice(-10)
-        .filter((msg) => msg.visible !== false)
-        .map((message) => {
-          const color =
-            message.role === "assistant"
-              ? "cyan"
-              : message.role === "user"
-                ? "green"
-                : "yellow";
-          const label =
-            message.role === "tool" ? `${message.toolName}` : message.role;
-
+      {snapshot.messages.slice(-10).map((message) => {
+        // Tool messages appear more condensed with gray color
+        if (message.role === "tool") {
           return (
-            <Box key={message.id} flexDirection="column" marginTop={1}>
-              <Box>
-                <Text color={color}>{label}: </Text>
-                <Text>
-                  {message.role === "tool" && message.toolSummary
-                    ? message.toolSummary
-                    : message.content}
-                </Text>
-              </Box>
+            <Box key={message.id} marginTop={1}>
+              <Text color="gray">
+                {message.toolName}: {message.toolSummary || message.content}
+              </Text>
             </Box>
           );
-        })}
+        }
+
+        const isAssistant = message.role === "assistant";
+        const isUser = message.role === "user";
+        const color = isAssistant ? "cyan" : isUser ? "green" : "yellow";
+        const label = isAssistant
+          ? snapshot.config.uiLabels.assistant
+          : isUser
+            ? snapshot.config.uiLabels.user
+            : message.role;
+
+        return (
+          <Box key={message.id} flexDirection="column" marginTop={1}>
+            <Box>
+              <Text color={color}>{label}: </Text>
+              <Text>{message.content}</Text>
+            </Box>
+          </Box>
+        );
+      })}
     </Box>
   );
 }

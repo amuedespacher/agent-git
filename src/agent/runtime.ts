@@ -113,9 +113,15 @@ export class AgentRuntime {
         { name: "git_status", args: {} },
         false,
       )) as RepoSnapshot;
-      this.#addAssistantMessage(
-        "git-agent is ready. Ask about repo state, staged work, branch validation, or run /connect-openai to configure OpenAI.",
+      
+      // Let the AI generate an initial greeting based on the repo state
+      this.#messages.push(
+        this.#message(
+          "user",
+          "I just initialized git-agent in this repository. Based on the current status, give me an informative greeting and suggest what I should do next.",
+        ),
       );
+      await this.#runAgentLoop();
     } else {
       this.#repo = emptyRepo;
       this.#addAssistantMessage(
@@ -437,10 +443,9 @@ export class AgentRuntime {
     try {
       const result = await tool.execute(validatedArgs);
       const serialized = JSON.stringify(result);
-      const showTools = this.#config?.verbosity === "detailed";
       this.#messages.push({
         ...this.#message("tool", serialized, tool.name),
-        visible: showTools,
+        visible: this.#config?.verbosity === "detailed",
         toolSummary: summarizeToolResult(result),
       });
       this.#recordToolEvent(
