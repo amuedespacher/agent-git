@@ -36,12 +36,12 @@ const configSchema = z.object({
   verbosity: z.enum(["minimal", "normal", "detailed"]).default("normal"),
   uiLabels: z
     .object({
-      assistant: z.string().default("dr. git"),
-      user: z.string().default("me"),
+      assistant: z.string().default("Dr. Git"),
+      user: z.string().default("Me"),
     })
     .default({
-      assistant: "dr. git",
-      user: "me",
+      assistant: "Dr. Git",
+      user: "Me",
     }),
 });
 
