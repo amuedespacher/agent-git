@@ -1,60 +1,110 @@
 # Dr. Git
 
-`drgit` is a terminal-native Git assistant with a chat-first workflow, a tool-driven agent loop, and a safety layer around local Git operations.
+> **Experimental** — This is an early-stage hobby project. Expect rough edges and breaking changes. Use with care on repositories that matter to you.
 
-## What v1 includes
+`drgit` is a terminal-native, chat-first Git assistant powered by an LLM agent loop. Instead of memorising subcommands, you describe what you want in plain language and Dr. Git reasons about your repository, calls structured Git tools, and asks for your approval before making any changes.
 
-- Ink-based terminal UI with chat transcript, repo sidebar, and approval prompts
-- Tool-driven runtime with safe/read tools and guarded/write tools
-- OpenAI-native provider with tool calling
-- Branch naming validation and commit-style configuration
-- Commit message suggestion from staged changes
-- Basic decision support for dirty trees and diverged branches
-
-## Install
-
-```bash
-npm install
-npm run install:cli
+```
+npx drgit
 ```
 
-This links the local package onto your shell `PATH` so the `drgit` command works directly.
+Run that inside any Git repository to open the interactive UI.
 
-Run the app from inside any repository:
+---
+
+## How it works
+
+Dr. Git connects to an OpenAI model and drives an internal agent loop:
+
+1. You send a natural-language message.
+2. The LLM decides which Git tools to call.
+3. Tools are executed **locally** against your repository.
+4. Results feed back into the model until the task is complete.
+
+Write operations (commit, push, branch changes, etc.) are **guarded** — the agent presents the action and waits for your explicit `y` or `n` before executing anything.
+
+---
+
+## Requirements
+
+- Node.js ≥ 18
+- An [OpenAI API key](https://platform.openai.com/api-keys)
+- A Git repository to work in
+
+---
+
+## Setup
+
+### Via npx (no install)
 
 ```bash
+npx drgit
+```
+
+On first launch without a saved key, the app will walk you through connecting to OpenAI.
+
+### Global install
+
+```bash
+npm install -g drgit
 drgit
 ```
 
-If you prefer not to link a global command, run it directly from the project:
+---
 
-```bash
-npm start
-```
+## What you can ask
 
-During development:
+**Repository inspection**
 
-```bash
-npm run dev
-```
+- `what's going on in this repo?`
+- `show me the staged diff`
+- `show recent commit history`
+- `list all branches`
+- `what remotes are configured?`
 
-## Commands
+**Committing**
 
-- `drgit --help` shows CLI usage
-- `drgit --version` prints the installed version
-- `/help` shows available chat patterns and slash commands
-- `/settings` opens the settings panel
-- `/connect-openai` prompts for an OpenAI API key, tests it, and saves it
-- `/chat` returns to the chat panel
-- `/refresh` refreshes repository state
+- `help me commit my staged changes`
+- `stage everything and write a commit message`
+- `suggest a conventional commit message for my diff`
 
-When a guarded tool is pending, answer with `y` or `n`.
+**Branching**
+
+- `create a branch called feature/my-thing`
+- `switch to main`
+- `delete the branch fix/old-thing`
+- `validate my current branch name`
+
+**Syncing with remotes**
+
+- `push my branch`
+- `pull the latest from origin`
+- `fetch and prune stale remote branches`
+
+**Remote management**
+
+- `add a remote called upstream`
+- `change the origin URL`
+
+---
+
+## Slash commands
+
+| Command           | Description                                     |
+| ----------------- | ----------------------------------------------- |
+| `/help`           | Show available chat patterns and slash commands |
+| `/settings`       | Open the settings panel                         |
+| `/connect-openai` | Enter and save your OpenAI API key              |
+| `/chat`           | Return to the chat panel                        |
+| `/refresh`        | Re-scan repository state                        |
+| `drgit --help`    | CLI flag reference                              |
+| `drgit --version` | Print the installed version                     |
+
+---
 
 ## Configuration
 
-Configuration is loaded with `cosmiconfig` from `drgit.config.json`, `drgit.config.cjs`, or the `drgit` key in `package.json`. User-level OpenAI credentials are stored in `~/.drgit/config.json`.
-
-Example:
+Configuration is resolved via [`cosmiconfig`](https://github.com/cosmiconfig/cosmiconfig): place a `drgit.config.json` file in your project root, or add a `"drgit"` key to `package.json`. Your OpenAI credentials are stored separately in `~/.drgit/config.json`.
 
 ```json
 {
@@ -69,20 +119,36 @@ Example:
 }
 ```
 
-To use OpenAI from inside the app, run `/connect-openai`, paste your API key, and let the app test and save the connection for you. On first launch without a configured key, the app automatically enters OpenAI setup mode.
-
-You can still configure OpenAI via environment variable by exporting `OPENAI_API_KEY`.
-
-## Suggested prompts
-
-- `what's going on in this repo?`
-- `help me commit my staged changes`
-- `validate my branch name`
-- `show me the staged diff`
-- `show recent history`
-
-## Testing
+You can also supply the API key via environment variable instead of the interactive setup:
 
 ```bash
-npm test
+export OPENAI_API_KEY=sk-...
+```
+
+---
+
+## Limitations
+
+Dr. Git is experimental. The following are known gaps in the current implementation:
+
+- **OpenAI only.** No support for other providers (Anthropic, Ollama, local models). An API key is required — there is no offline or heuristic-only mode.
+- **No rebase tool.** Interactive or standalone rebase is not implemented. Pull with `--rebase` is supported, but the agent cannot drive a rebase workflow step-by-step.
+- **No reset tool.** `git reset` (soft, mixed, or hard) is not available as an agent action. Recovery from bad commits must be done manually.
+- **No stash tool.** The agent cannot stash or pop changes. It may suggest stashing, but cannot execute it.
+- **No conflict resolution.** The agent cannot walk you through resolving merge conflicts. It can detect conflicted files in the status but cannot act on them.
+- **Diff and log size limits.** Diffs are capped at 400 lines and logs at 200 entries. Very large changesets may be truncated before the model sees them.
+- **Single repository.** The agent operates only in the directory it was launched from. Monorepo or multi-root scenarios are not supported.
+- **macOS/Linux only.** Untested on Windows. The terminal UI may not render correctly in all Windows terminals.
+
+---
+
+## Development
+
+```bash
+git clone https://github.com/amuedespacher/drgit.git
+cd drgit
+npm install
+npm run dev        # run from source with tsx
+npm test           # run the test suite
+npm run build      # compile TypeScript to dist/
 ```
