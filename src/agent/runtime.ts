@@ -342,6 +342,15 @@ export class AgentRuntime {
         execute: gitTools.git_checkout.execute,
       },
       {
+        name: "git_branch_delete",
+        description: "Delete a local branch (safe by default, force optional).",
+        risk: "low",
+        requiresConfirmation: true,
+        inputSchema: gitTools.git_branch_delete.schema,
+        jsonSchema: gitTools.git_branch_delete.jsonSchema,
+        execute: gitTools.git_branch_delete.execute,
+      },
+      {
         name: "git_merge",
         description: "Merge a source branch into the current branch.",
         risk: "low",
@@ -464,6 +473,7 @@ export class AgentRuntime {
           "git_commit",
           "git_stage_all",
           "git_branch_create",
+          "git_branch_delete",
           "git_checkout",
           "git_merge",
         ].includes(tool.name)
@@ -676,6 +686,8 @@ export class AgentRuntime {
         return `Create new branch "${args.name}"${args.checkout ? " and switch to it" : ""}?`;
       case "git_checkout":
         return `Switch to branch/commit "${args.target}"?`;
+      case "git_branch_delete":
+        return `Delete branch "${args.name}"${args.force ? " (force)" : ""}?`;
       case "git_merge":
         return `Merge "${args.source}" into current branch?`;
       default:

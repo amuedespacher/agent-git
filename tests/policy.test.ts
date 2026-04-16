@@ -22,6 +22,14 @@ describe("validateBranchName", () => {
     expect(result.valid).toBe(false);
     expect(result.suggestion).toBe("feature/agent-loop");
   });
+
+  it("always allows main, master, and dev", () => {
+    const strictPattern = "^(feature|fix)/[a-z0-9._-]+$";
+
+    expect(validateBranchName("main", strictPattern).valid).toBe(true);
+    expect(validateBranchName("master", strictPattern).valid).toBe(true);
+    expect(validateBranchName("dev", strictPattern).valid).toBe(true);
+  });
 });
 
 describe("parsePorcelainV2", () => {

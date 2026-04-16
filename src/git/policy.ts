@@ -18,6 +18,14 @@ export function validateBranchName(
   branchName: string,
   pattern: string,
 ): BranchValidationResult {
+  if (["main", "master", "dev", "develop"].includes(branchName)) {
+    return {
+      valid: true,
+      pattern,
+      message: `Branch '${branchName}' is always allowed.`,
+    };
+  }
+
   const matcher = new RegExp(pattern);
   const valid = matcher.test(branchName);
 

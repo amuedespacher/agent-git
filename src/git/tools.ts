@@ -27,6 +27,11 @@ const branchCreateArgsSchema = z.object({
   checkout: z.boolean().default(true),
 });
 
+const branchDeleteArgsSchema = z.object({
+  name: z.string().min(1),
+  force: z.boolean().default(false),
+});
+
 const checkoutArgsSchema = z.object({
   target: z.string().min(1),
 });
@@ -190,6 +195,22 @@ export function createGitTools(cwd: string, config: AppConfig) {
       execute: async (args: Record<string, unknown>) => {
         const parsed = checkoutArgsSchema.parse(args);
         return checkout(cwd, parsed.target);
+      },
+    },
+    git_branch_delete: {
+      schema: branchDeleteArgsSchema,
+      jsonSchema: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          force: { type: "boolean" },
+        },
+        required: ["name"],
+        additionalProperties: false,
+      },
+      execute: async (args: Record<string, unknown>) => {
+        const parsed = branchDeleteArgsSchema.parse(args);
+        return deleteBranch(cwd, parsed.name, parsed.force);
       },
     },
     git_merge: {
@@ -386,15 +407,40 @@ export async function createBranch(
   name: string,
   checkoutNew: boolean,
 ) {
+  const exists = await localBranchExists(cwd, name);
+  if (exists) {
+    return {
+      name,
+      checkout: checkoutNew,
+      existed: true,
+      output: `Branch '${name}' already exists.`,
+    };
+  }
+
   const output = checkoutNew
     ? await runGit(cwd, ["checkout", "-b", name])
     : await runGit(cwd, ["branch", name]);
-  return { name, checkout: checkoutNew, output };
+  return { name, checkout: checkoutNew, existed: false, output };
 }
 
 export async function checkout(cwd: string, target: string) {
   const output = await runGit(cwd, ["checkout", target]);
   return { target, output };
+}
+
+export async function deleteBranch(cwd: string, name: string, force: boolean) {
+  const exists = await localBranchExists(cwd, name);
+  if (!exists) {
+    return {
+      name,
+      force,
+      deleted: false,
+      output: `Branch '${name}' does not exist.`,
+    };
+  }
+
+  const output = await runGit(cwd, ["branch", force ? "-D" : "-d", name]);
+  return { name, force, deleted: true, output };
 }
 
 export async function merge(cwd: string, source: string) {
@@ -648,4 +694,13 @@ function extensionToken(filePath: string): string | null {
   }
 
   return ext.length >= 2 ? ext : null;
+}
+
+async function localBranchExists(cwd: string, branchName: string): Promise<boolean> {
+  try {
+    await runGit(cwd, ["show-ref", "--verify", "--quiet", `refs/heads/${branchName}`]);
+    return true;
+  } catch {
+    return false;
+  }
 }
