@@ -359,6 +359,34 @@ export class AgentRuntime {
         jsonSchema: gitTools.git_merge.jsonSchema,
         execute: gitTools.git_merge.execute,
       },
+      {
+        name: "git_remote_list",
+        description: "List configured remotes and their URLs.",
+        risk: "safe",
+        requiresConfirmation: false,
+        inputSchema: gitTools.git_remote_list.schema,
+        jsonSchema: gitTools.git_remote_list.jsonSchema,
+        execute: gitTools.git_remote_list.execute,
+      },
+      {
+        name: "git_remote_set",
+        description:
+          "Add or update a named remote (e.g. origin). Uses 'git remote add' for new remotes or 'git remote set-url' for existing ones.",
+        risk: "low",
+        requiresConfirmation: true,
+        inputSchema: gitTools.git_remote_set.schema,
+        jsonSchema: gitTools.git_remote_set.jsonSchema,
+        execute: gitTools.git_remote_set.execute,
+      },
+      {
+        name: "git_remote_remove",
+        description: "Remove a named remote from the repository.",
+        risk: "low",
+        requiresConfirmation: true,
+        inputSchema: gitTools.git_remote_remove.schema,
+        jsonSchema: gitTools.git_remote_remove.jsonSchema,
+        execute: gitTools.git_remote_remove.execute,
+      },
     ];
   }
 
@@ -476,6 +504,8 @@ export class AgentRuntime {
           "git_branch_delete",
           "git_checkout",
           "git_merge",
+          "git_remote_set",
+          "git_remote_remove",
         ].includes(tool.name)
       ) {
         const statusTool = this.#lookupTool("git_status");
@@ -690,6 +720,10 @@ export class AgentRuntime {
         return `Delete branch "${args.name}"${args.force ? " (force)" : ""}?`;
       case "git_merge":
         return `Merge "${args.source}" into current branch?`;
+      case "git_remote_set":
+        return `Set remote "${args.name ?? "origin"}" to URL "${args.url}"?`;
+      case "git_remote_remove":
+        return `Remove remote "${args.name}"?`;
       default:
         return `Execute ${toolName}?`;
     }

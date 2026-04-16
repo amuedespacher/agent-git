@@ -40,6 +40,15 @@ const mergeArgsSchema = z.object({
   source: z.string().min(1),
 });
 
+const remoteSetArgsSchema = z.object({
+  name: z.string().min(1).default("origin"),
+  url: z.string().min(1),
+});
+
+const remoteRemoveArgsSchema = z.object({
+  name: z.string().min(1),
+});
+
 interface ParsedDiffChange {
   type?: string;
   content?: string;
@@ -224,6 +233,44 @@ export function createGitTools(cwd: string, config: AppConfig) {
       execute: async (args: Record<string, unknown>) => {
         const parsed = mergeArgsSchema.parse(args);
         return merge(cwd, parsed.source);
+      },
+    },
+    git_remote_list: {
+      schema: z.object({}),
+      jsonSchema: {
+        type: "object",
+        properties: {},
+        additionalProperties: false,
+      },
+      execute: async () => listRemotes(cwd),
+    },
+    git_remote_set: {
+      schema: remoteSetArgsSchema,
+      jsonSchema: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          url: { type: "string" },
+        },
+        required: ["url"],
+        additionalProperties: false,
+      },
+      execute: async (args: Record<string, unknown>) => {
+        const parsed = remoteSetArgsSchema.parse(args);
+        return setRemote(cwd, parsed.name, parsed.url);
+      },
+    },
+    git_remote_remove: {
+      schema: remoteRemoveArgsSchema,
+      jsonSchema: {
+        type: "object",
+        properties: { name: { type: "string" } },
+        required: ["name"],
+        additionalProperties: false,
+      },
+      execute: async (args: Record<string, unknown>) => {
+        const parsed = remoteRemoveArgsSchema.parse(args);
+        return removeRemote(cwd, parsed.name);
       },
     },
   };
@@ -446,6 +493,34 @@ export async function deleteBranch(cwd: string, name: string, force: boolean) {
 export async function merge(cwd: string, source: string) {
   const output = await runGit(cwd, ["merge", source]);
   return { source, output };
+}
+
+export async function listRemotes(cwd: string) {
+  const output = await runGit(cwd, ["remote", "-v"]);
+  const seen = new Set<string>();
+  const remotes: Array<{ name: string; url: string }> = [];
+  for (const line of output.split("\n").filter(Boolean)) {
+    const [name, url] = line.split(/\s+/);
+    if (name && url && !seen.has(name)) {
+      seen.add(name);
+      remotes.push({ name, url });
+    }
+  }
+  return { remotes };
+}
+
+export async function setRemote(cwd: string, name: string, url: string) {
+  const existing = await listRemotes(cwd);
+  const exists = existing.remotes.some((r) => r.name === name);
+  const output = exists
+    ? await runGit(cwd, ["remote", "set-url", name, url])
+    : await runGit(cwd, ["remote", "add", name, url]);
+  return { name, url, action: exists ? "updated" : "added", output };
+}
+
+export async function removeRemote(cwd: string, name: string) {
+  const output = await runGit(cwd, ["remote", "remove", name]);
+  return { name, removed: true, output };
 }
 
 export interface ParsedPorcelainStatus {
@@ -696,9 +771,17 @@ function extensionToken(filePath: string): string | null {
   return ext.length >= 2 ? ext : null;
 }
 
-async function localBranchExists(cwd: string, branchName: string): Promise<boolean> {
+async function localBranchExists(
+  cwd: string,
+  branchName: string,
+): Promise<boolean> {
   try {
-    await runGit(cwd, ["show-ref", "--verify", "--quiet", `refs/heads/${branchName}`]);
+    await runGit(cwd, [
+      "show-ref",
+      "--verify",
+      "--quiet",
+      `refs/heads/${branchName}`,
+    ]);
     return true;
   } catch {
     return false;
