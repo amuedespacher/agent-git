@@ -128,19 +128,6 @@ function Sidebar({ snapshot }: { snapshot: RuntimeSnapshot }) {
           </>
         )}
       </Box>
-      {snapshot.pendingApproval && (
-        <Box
-          borderStyle="round"
-          borderColor="magenta"
-          paddingX={1}
-          flexDirection="column"
-          marginTop={1}
-        >
-          <Text color="magenta">Pending Approval</Text>
-          <Text>{snapshot.pendingApproval.summary}</Text>
-          <Text color="yellow">Reply with y or n</Text>
-        </Box>
-      )}
     </Box>
   );
 }
@@ -159,28 +146,41 @@ function MainPanel({ snapshot }: { snapshot: RuntimeSnapshot }) {
       flexDirection="column"
     >
       <Text color="white">Chat</Text>
-      {snapshot.messages.slice(-10).map((message) => {
-        const color =
-          message.role === "assistant"
-            ? "cyan"
-            : message.role === "user"
-              ? "green"
-              : "yellow";
-        const label =
-          message.role === "tool" ? `${message.toolName}` : message.role;
-        return (
-          <Box key={message.id} marginTop={1}>
-            <Text color={color}>{label}: </Text>
-            <Text>{message.content}</Text>
-          </Box>
-        );
-      })}
-      {snapshot.pendingApproval && (
-        <Box marginTop={1}>
-          <Text color="magenta">pending: </Text>
-          <Text>{snapshot.pendingApproval.summary}</Text>
-        </Box>
-      )}
+      {snapshot.messages
+        .slice(-10)
+        .filter((msg) => msg.visible !== false)
+        .map((message) => {
+          const color =
+            message.role === "assistant"
+              ? "cyan"
+              : message.role === "user"
+                ? "green"
+                : "yellow";
+          const label =
+            message.role === "tool" ? `${message.toolName}` : message.role;
+
+          return (
+            <Box key={message.id} flexDirection="column" marginTop={1}>
+              <Box>
+                <Text color={color}>{label}: </Text>
+                <Text>
+                  {message.role === "tool" && message.toolSummary
+                    ? message.toolSummary
+                    : message.content}
+                </Text>
+              </Box>
+              {message.options && message.options.length > 0 && (
+                <Box marginTop={0} marginLeft={2} flexDirection="column">
+                  {message.options.map((option, idx) => (
+                    <Text key={option.value} color="yellow">
+                      [{idx + 1}] {option.label}
+                    </Text>
+                  ))}
+                </Box>
+              )}
+            </Box>
+          );
+        })}
     </Box>
   );
 }
@@ -246,7 +246,7 @@ function Footer({
   const prompt = awaitingOpenAIKey
     ? "openai-key> "
     : pendingApproval
-      ? "approve> "
+      ? "choose> "
       : "chat> ";
 
   return (

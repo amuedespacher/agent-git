@@ -40,12 +40,20 @@ export interface RepoSnapshot {
   unstagedFiles: string[];
 }
 
+export interface ChatMessageOption {
+  label: string;
+  value: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: "system" | "user" | "assistant" | "tool";
   content: string;
   createdAt: number;
   toolName?: string;
+  visible?: boolean; // defaults to true, false to hide tool calls
+  options?: ChatMessageOption[]; // for inline options/choices
+  toolSummary?: string; // user-friendly summary instead of full JSON
 }
 
 export interface ToolCall {
@@ -67,6 +75,7 @@ export interface PendingApproval {
   call: ToolCall;
   risk: RiskLevel;
   summary: string;
+  options?: ChatMessageOption[]; // predefined options for approval
 }
 
 export interface RuntimeSnapshot {
@@ -86,6 +95,7 @@ export interface RuntimeSnapshot {
     lastMessage?: string;
     lastError?: string;
   };
+  suggestionsEnabled?: boolean; // whether to show next action suggestions
 }
 
 export interface ProviderDecision {

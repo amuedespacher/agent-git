@@ -14,6 +14,7 @@ import { createGitTools } from "../git/tools.js";
 import type {
   AppConfig,
   ChatMessage,
+  ChatMessageOption,
   PendingApproval,
   ProviderDecision,
   RepoSnapshot,
@@ -388,15 +389,29 @@ export class AgentRuntime {
         }
 
         if (tool.requiresConfirmation) {
+          const confirmOptions: ChatMessageOption[] = [
+            { label: "Yes, proceed", value: "y" },
+            { label: "No, cancel", value: "n" },
+          ];
+
+          const approvalMessage = this.#message(
+            "assistant",
+            `▶ ${this.#generateToolDescription(tool.name, call.args)}`,
+          );
+          approvalMessage.options = confirmOptions;
+
+          this.#messages.push(approvalMessage);
+
           this.#pendingApproval = {
             call,
             risk: tool.risk,
-            summary: `Approve ${tool.name} with ${JSON.stringify(call.args)}?`,
+            summary: `Approve ${tool.name}?`,
+            options: confirmOptions,
           };
           this.#recordToolEvent(
             tool.name,
             "pending-approval",
-            this.#pendingApproval.summary,
+            `Pending: ${tool.name}`,
             tool.risk,
           );
           this.#busy = false;
@@ -406,6 +421,12 @@ export class AgentRuntime {
 
         await this.#executeTool(call, true);
       }
+    }
+
+    // Add suggested next actions if enabled
+    const suggestions = this.#generateNextActions();
+    if (suggestions && this.#config?.verbosity !== "minimal") {
+      this.#addAssistantMessage(suggestions);
     }
 
     this.#busy = false;
@@ -430,7 +451,12 @@ export class AgentRuntime {
     try {
       const result = await tool.execute(validatedArgs);
       const serialized = JSON.stringify(result);
-      this.#messages.push(this.#message("tool", serialized, tool.name));
+      const showTools = this.#config?.verbosity === "detailed";
+      this.#messages.push({
+        ...this.#message("tool", serialized, tool.name),
+        visible: showTools,
+        toolSummary: summarizeToolResult(result),
+      });
       this.#recordToolEvent(
         tool.name,
         "completed",
@@ -486,8 +512,27 @@ export class AgentRuntime {
       return;
     }
 
+    // Handle numbered options (e.g., "1" for first option, "2" for second)
+    if (this.#pendingApproval?.options) {
+      const optionIndex = parseInt(normalized, 10) - 1;
+      if (
+        optionIndex >= 0 &&
+        optionIndex < this.#pendingApproval.options.length
+      ) {
+        const selectedValue = this.#pendingApproval.options[optionIndex].value;
+        if (selectedValue === "y") {
+          await this.resolveApproval(true);
+          return;
+        }
+        if (selectedValue === "n") {
+          await this.resolveApproval(false);
+          return;
+        }
+      }
+    }
+
     this.#addAssistantMessage(
-      "A guarded action is pending. Reply with y or n.",
+      "A guarded action is pending. Reply with 1 or 2 (or y/n).",
     );
     this.#emit();
   }
@@ -643,6 +688,67 @@ export class AgentRuntime {
 
   #addAssistantMessage(content: string): void {
     this.#messages.push(this.#message("assistant", content));
+  }
+
+  #generateToolDescription(
+    toolName: string,
+    args: Record<string, unknown>,
+  ): string {
+    // Generate human-friendly descriptions of tool actions
+    switch (toolName) {
+      case "git_commit":
+        return `Create commit with message: "${args.message}"?`;
+      case "git_stage_all":
+        return "Stage all uncommitted changes?";
+      case "git_branch_create":
+        return `Create new branch "${args.name}"${args.checkout ? " and switch to it" : ""}?`;
+      case "git_checkout":
+        return `Switch to branch/commit "${args.target}"?`;
+      case "git_merge":
+        return `Merge "${args.source}" into current branch?`;
+      default:
+        return `Execute ${toolName}?`;
+    }
+  }
+
+  #generateNextActions(): string {
+    const repo = this.#repo;
+
+    if (!repo.isGitRepo) {
+      return "";
+    }
+
+    const actions: string[] = [];
+
+    if (!repo.clean && repo.staged > 0) {
+      actions.push("[1] Review staged changes");
+      actions.push("[2] Create a commit");
+    } else if (!repo.clean && repo.unstaged > 0) {
+      actions.push("[1] Stage changes");
+      actions.push("[2] Review what will be staged");
+    }
+
+    if (repo.ahead > 0) {
+      actions.push("[3] Push to upstream");
+    }
+
+    if (repo.behind > 0) {
+      actions.push("[4] Pull from upstream");
+    }
+
+    if (repo.branch && repo.branch !== "main" && repo.branch !== "master") {
+      actions.push("[5] Merge into main");
+    }
+
+    if (!repo.branchValid) {
+      actions.push("[6] Check branch naming");
+    }
+
+    if (actions.length === 0) {
+      return "Repository is clean. You can check logs, validate branches, or switch branches.";
+    }
+
+    return "Next steps:\n" + actions.join("\n");
   }
 
   #syncOpenAISetup(): void {
