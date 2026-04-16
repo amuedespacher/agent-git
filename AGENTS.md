@@ -1,4 +1,4 @@
-# Dr. Git — Agent Guidelines
+# Agent Git — Agent Guidelines
 
 ## Project overview
 
@@ -25,7 +25,7 @@ src/
     openaiProvider.ts  # Concrete OpenAI implementation
     runtime.ts         # AgentRuntime — owns the agent loop, state, and listeners
   config/
-    index.ts           # cosmiconfig loader + zod schema; user config at ~/.drgit/
+    index.ts           # cosmiconfig loader + zod schema; user config at ~/.agent-git/
   git/
     exec.ts            # Raw git process execution (execa)
     tools.ts           # All Git tools exposed to the agent; add new tools here
@@ -48,5 +48,5 @@ The `AgentRuntime` is the single source of truth. The UI is a pure subscriber �
 
 - OpenAI is the only supported provider. Do not add multi-provider abstractions without discussion.
 - `git rebase`, `git reset`, and `git stash` are **not implemented** as agent tools. Do not add them without also adding the corresponding approval/safety handling.
-- Config module name for cosmiconfig is `"drgit"`. Do not rename.
-- User credentials live in `~/.drgit/config.json` — never log or expose the API key.
+- Config module name for cosmiconfig is `"agent-git"`. Do not rename.
+- User credentials live in `~/.agent-git/config.json` — never log or expose the API key.

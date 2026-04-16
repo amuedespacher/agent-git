@@ -81,7 +81,7 @@ function Header({ snapshot, cwd }: { snapshot: RuntimeSnapshot; cwd: string }) {
       paddingX={1}
       justifyContent="space-between"
     >
-      <Text color="cyan">Dr. Git v{pkg.version}</Text>
+      <Text color="cyan">Agent Git v{pkg.version}</Text>
       <Text>
         repo: {snapshot.repo.root ?? cwd} | branch:{" "}
         {snapshot.repo.branch ?? "n/a"} | provider: {snapshot.providerLabel}

@@ -1,11 +1,11 @@
-# Dr. Git
+# Agent Git
 
 > **Experimental** — This is an early-stage hobby project. Expect rough edges and breaking changes. Use with care on repositories that matter to you.
 
-`drgit` is a terminal-native, chat-first Git assistant powered by an LLM agent loop. Instead of memorising subcommands, you describe what you want in plain language and Dr. Git reasons about your repository, calls structured Git tools, and asks for your approval before making any changes.
+`agent-git` is a terminal-native, chat-first Git assistant powered by an LLM agent loop. Instead of memorising subcommands, you describe what you want in plain language and Agent Git reasons about your repository, calls structured Git tools, and asks for your approval before making any changes.
 
 ```
-npx drgit
+npx agent-git
 ```
 
 Run that inside any Git repository to open the interactive UI.
@@ -14,7 +14,7 @@ Run that inside any Git repository to open the interactive UI.
 
 ## How it works
 
-Dr. Git connects to an OpenAI model and drives an internal agent loop:
+Agent Git connects to an OpenAI model and drives an internal agent loop:
 
 1. You send a natural-language message.
 2. The LLM decides which Git tools to call.
@@ -38,7 +38,7 @@ Write operations (commit, push, branch changes, etc.) are **guarded** — the ag
 ### Via npx (no install)
 
 ```bash
-npx drgit
+npx agent-git
 ```
 
 On first launch without a saved key, the app will walk you through connecting to OpenAI.
@@ -46,8 +46,8 @@ On first launch without a saved key, the app will walk you through connecting to
 ### Global install
 
 ```bash
-npm install -g drgit
-drgit
+npm install -g agent-git
+agent-git
 ```
 
 ---
@@ -90,21 +90,21 @@ drgit
 
 ## Slash commands
 
-| Command           | Description                                     |
-| ----------------- | ----------------------------------------------- |
-| `/help`           | Show available chat patterns and slash commands |
-| `/settings`       | Open the settings panel                         |
-| `/connect-openai` | Enter and save your OpenAI API key              |
-| `/chat`           | Return to the chat panel                        |
-| `/refresh`        | Re-scan repository state                        |
-| `drgit --help`    | CLI flag reference                              |
-| `drgit --version` | Print the installed version                     |
+| Command               | Description                                     |
+| --------------------- | ----------------------------------------------- |
+| `/help`               | Show available chat patterns and slash commands |
+| `/settings`           | Open the settings panel                         |
+| `/connect-openai`     | Enter and save your OpenAI API key              |
+| `/chat`               | Return to the chat panel                        |
+| `/refresh`            | Re-scan repository state                        |
+| `agent-git --help`    | CLI flag reference                              |
+| `agent-git --version` | Print the installed version                     |
 
 ---
 
 ## Configuration
 
-Configuration is resolved via [`cosmiconfig`](https://github.com/cosmiconfig/cosmiconfig): place a `drgit.config.json` file in your project root, or add a `"drgit"` key to `package.json`. Your OpenAI credentials are stored separately in `~/.drgit/config.json`.
+Configuration is resolved via [`cosmiconfig`](https://github.com/cosmiconfig/cosmiconfig): place a `agent-git.config.json` file in your project root, or add a `"agent-git"` key to `package.json`. Your OpenAI credentials are stored separately in `~/.agent-git/config.json`.
 
 ```json
 {
@@ -129,7 +129,7 @@ export OPENAI_API_KEY=sk-...
 
 ## Limitations
 
-Dr. Git is experimental. The following are known gaps in the current implementation:
+Agent Git is experimental. The following are known gaps in the current implementation:
 
 - **OpenAI only.** No support for other providers (Anthropic, Ollama, local models). An API key is required — there is no offline or heuristic-only mode.
 - **No rebase tool.** Interactive or standalone rebase is not implemented. Pull with `--rebase` is supported, but the agent cannot drive a rebase workflow step-by-step.
@@ -145,8 +145,8 @@ Dr. Git is experimental. The following are known gaps in the current implementat
 ## Development
 
 ```bash
-git clone https://github.com/amuedespacher/drgit.git
-cd drgit
+git clone https://github.com/amuedespacher/agent-git.git
+cd agent-git
 npm install
 npm run dev        # run from source with tsx
 npm test           # run the test suite

@@ -124,7 +124,7 @@ function buildSystemPrompt(tools: RuntimeTool[], config: AppConfig): string {
           ].join(" ");
 
   return [
-    "You are Dr. Git, a terminal-native Git assistant.",
+    "You are Agent Git, a terminal-native Git assistant.",
     verbosityInstruction,
     "Never include raw git commands (e.g. `git push -u origin main`) in your replies. Describe actions in plain English; you have tools to execute them.",
     "Never ask the user questions. Questions are reserved exclusively for the confirmation prompts that the UI presents before executing actions.",

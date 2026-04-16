@@ -37,11 +37,11 @@ const configSchema = z.object({
   verbosity: z.enum(["minimal", "normal", "detailed"]).default("normal"),
   uiLabels: z
     .object({
-      assistant: z.string().default("Dr. Git"),
+      assistant: z.string().default("Agent Git"),
       user: z.string().default("Me"),
     })
     .default({
-      assistant: "Dr. Git",
+      assistant: "Agent Git",
       user: "Me",
     }),
 });
@@ -49,12 +49,12 @@ const configSchema = z.object({
 export const defaultConfig: AppConfig = configSchema.parse({});
 
 export function getUserConfigPath(): string {
-  return path.join(os.homedir(), ".drgit", "config.json");
+  return path.join(os.homedir(), ".agent-git", "config.json");
 }
 
 export async function loadConfig(cwd: string): Promise<AppConfig> {
   const userConfig = await loadUserConfig();
-  const explorer = cosmiconfig("drgit");
+  const explorer = cosmiconfig("agent-git");
   const result = await explorer.search(cwd);
 
   return mergeConfigLayers(defaultConfig, userConfig, result?.config);
