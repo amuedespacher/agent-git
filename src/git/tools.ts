@@ -49,6 +49,24 @@ const remoteRemoveArgsSchema = z.object({
   name: z.string().min(1),
 });
 
+const pushArgsSchema = z.object({
+  remote: z.string().min(1).default("origin"),
+  branch: z.string().optional(),
+  setUpstream: z.boolean().default(false),
+  force: z.boolean().default(false),
+});
+
+const pullArgsSchema = z.object({
+  remote: z.string().min(1).default("origin"),
+  branch: z.string().optional(),
+  rebase: z.boolean().default(false),
+});
+
+const fetchArgsSchema = z.object({
+  remote: z.string().min(1).default("origin"),
+  prune: z.boolean().default(false),
+});
+
 interface ParsedDiffChange {
   type?: string;
   content?: string;
@@ -271,6 +289,60 @@ export function createGitTools(cwd: string, config: AppConfig) {
       execute: async (args: Record<string, unknown>) => {
         const parsed = remoteRemoveArgsSchema.parse(args);
         return removeRemote(cwd, parsed.name);
+      },
+    },
+    git_push: {
+      schema: pushArgsSchema,
+      jsonSchema: {
+        type: "object",
+        properties: {
+          remote: { type: "string" },
+          branch: { type: "string" },
+          setUpstream: { type: "boolean" },
+          force: { type: "boolean" },
+        },
+        additionalProperties: false,
+      },
+      execute: async (args: Record<string, unknown>) => {
+        const parsed = pushArgsSchema.parse(args);
+        return push(
+          cwd,
+          parsed.remote,
+          parsed.branch,
+          parsed.setUpstream,
+          parsed.force,
+        );
+      },
+    },
+    git_pull: {
+      schema: pullArgsSchema,
+      jsonSchema: {
+        type: "object",
+        properties: {
+          remote: { type: "string" },
+          branch: { type: "string" },
+          rebase: { type: "boolean" },
+        },
+        additionalProperties: false,
+      },
+      execute: async (args: Record<string, unknown>) => {
+        const parsed = pullArgsSchema.parse(args);
+        return pull(cwd, parsed.remote, parsed.branch, parsed.rebase);
+      },
+    },
+    git_fetch: {
+      schema: fetchArgsSchema,
+      jsonSchema: {
+        type: "object",
+        properties: {
+          remote: { type: "string" },
+          prune: { type: "boolean" },
+        },
+        additionalProperties: false,
+      },
+      execute: async (args: Record<string, unknown>) => {
+        const parsed = fetchArgsSchema.parse(args);
+        return fetch(cwd, parsed.remote, parsed.prune);
       },
     },
   };
@@ -521,6 +593,43 @@ export async function setRemote(cwd: string, name: string, url: string) {
 export async function removeRemote(cwd: string, name: string) {
   const output = await runGit(cwd, ["remote", "remove", name]);
   return { name, removed: true, output };
+}
+
+export async function push(
+  cwd: string,
+  remote: string,
+  branch: string | undefined,
+  setUpstream: boolean,
+  force: boolean,
+) {
+  const args = ["push"];
+  if (setUpstream) args.push("-u");
+  if (force) args.push("--force-with-lease");
+  args.push(remote);
+  if (branch) args.push(branch);
+  const output = await runGit(cwd, args);
+  return { remote, branch: branch ?? null, setUpstream, force, output };
+}
+
+export async function pull(
+  cwd: string,
+  remote: string,
+  branch: string | undefined,
+  rebase: boolean,
+) {
+  const args = ["pull"];
+  if (rebase) args.push("--rebase");
+  args.push(remote);
+  if (branch) args.push(branch);
+  const output = await runGit(cwd, args);
+  return { remote, branch: branch ?? null, rebase, output };
+}
+
+export async function fetch(cwd: string, remote: string, prune: boolean) {
+  const args = ["fetch", remote];
+  if (prune) args.push("--prune");
+  const output = await runGit(cwd, args);
+  return { remote, prune, output };
 }
 
 export interface ParsedPorcelainStatus {

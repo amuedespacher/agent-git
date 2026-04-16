@@ -387,6 +387,35 @@ export class AgentRuntime {
         jsonSchema: gitTools.git_remote_remove.jsonSchema,
         execute: gitTools.git_remote_remove.execute,
       },
+      {
+        name: "git_push",
+        description:
+          "Push the current or specified branch to a remote. Use setUpstream:true to set tracking (-u) on first push. Uses --force-with-lease instead of --force.",
+        risk: "low",
+        requiresConfirmation: true,
+        inputSchema: gitTools.git_push.schema,
+        jsonSchema: gitTools.git_push.jsonSchema,
+        execute: gitTools.git_push.execute,
+      },
+      {
+        name: "git_pull",
+        description:
+          "Pull from a remote, optionally rebasing instead of merging.",
+        risk: "low",
+        requiresConfirmation: true,
+        inputSchema: gitTools.git_pull.schema,
+        jsonSchema: gitTools.git_pull.jsonSchema,
+        execute: gitTools.git_pull.execute,
+      },
+      {
+        name: "git_fetch",
+        description: "Fetch from a remote without modifying the working tree.",
+        risk: "safe",
+        requiresConfirmation: false,
+        inputSchema: gitTools.git_fetch.schema,
+        jsonSchema: gitTools.git_fetch.jsonSchema,
+        execute: gitTools.git_fetch.execute,
+      },
     ];
   }
 
@@ -506,6 +535,8 @@ export class AgentRuntime {
           "git_merge",
           "git_remote_set",
           "git_remote_remove",
+          "git_push",
+          "git_pull",
         ].includes(tool.name)
       ) {
         const statusTool = this.#lookupTool("git_status");
@@ -724,6 +755,20 @@ export class AgentRuntime {
         return `Set remote "${args.name ?? "origin"}" to URL "${args.url}"?`;
       case "git_remote_remove":
         return `Remove remote "${args.name}"?`;
+      case "git_push": {
+        const branch = args.branch ? ` (branch: ${args.branch})` : "";
+        const flags = [
+          args.setUpstream && "-u",
+          args.force && "--force-with-lease",
+        ]
+          .filter(Boolean)
+          .join(" ");
+        return `Push to "${args.remote}"${branch}${flags ? ` ${flags}` : ""}?`;
+      }
+      case "git_pull": {
+        const branch = args.branch ? ` ${args.branch}` : "";
+        return `Pull from "${args.remote}"${branch}${args.rebase ? " (rebase)" : ""}?`;
+      }
       default:
         return `Execute ${toolName}?`;
     }
