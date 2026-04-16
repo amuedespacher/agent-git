@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { suggestCommitMessage, validateBranchName } from "../src/git/policy.js";
+import { validateBranchName } from "../src/git/policy.js";
 import { parsePorcelainV2 } from "../src/git/tools.js";
 
 describe("validateBranchName", () => {
@@ -21,49 +21,6 @@ describe("validateBranchName", () => {
 
     expect(result.valid).toBe(false);
     expect(result.suggestion).toBe("feature/agent-loop");
-  });
-});
-
-describe("suggestCommitMessage", () => {
-  it("uses feat for feature branches with conventional commits", () => {
-    const message = suggestCommitMessage({
-      branchName: "feature/tool-runtime",
-      files: ["src/agent/runtime.ts"],
-      style: "conventional",
-    });
-
-    expect(message).toBe("feat: update runtime");
-  });
-
-  it("generates descriptive message for staging and suggestion improvements", () => {
-    const message = suggestCommitMessage({
-      branchName: "feature/openai-integration",
-      files: [
-        "src/agent/openaiProvider.ts",
-        "src/agent/runtime.ts",
-        "src/git/tools.ts",
-      ],
-      style: "conventional",
-      keywords: ["staged", "git_stage_all", "suggest", "message", "commit"],
-    });
-
-    expect(message).toBe(
-      "feat: improve commit staging and message suggestions",
-    );
-  });
-
-  it("lists file subjects instead of generic count for small multi-file commits", () => {
-    const message = suggestCommitMessage({
-      branchName: "feature/openai-integration",
-      files: [
-        "src/agent/openaiProvider.ts",
-        "src/agent/runtime.ts",
-        "src/git/tools.ts",
-      ],
-      style: "conventional",
-    });
-
-    expect(message).toBe("feat: update openaiProvider, runtime, and tools");
   });
 });
 

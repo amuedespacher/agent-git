@@ -1,8 +1,9 @@
+import parseDiff from "parse-diff";
 import { z } from "zod";
 
 import type { AppConfig, RepoSnapshot } from "../types.js";
 import { runGit } from "./exec.js";
-import { suggestCommitMessage, validateBranchName } from "./policy.js";
+import { validateBranchName } from "./policy.js";
 
 const diffArgsSchema = z.object({
   staged: z.boolean().default(false),
@@ -33,6 +34,32 @@ const checkoutArgsSchema = z.object({
 const mergeArgsSchema = z.object({
   source: z.string().min(1),
 });
+
+interface ParsedDiffChange {
+  type?: string;
+  content?: string;
+}
+
+interface ParsedDiffChunk {
+  changes?: ParsedDiffChange[];
+}
+
+interface ParsedDiffFile {
+  from?: string;
+  to?: string;
+  chunks?: ParsedDiffChunk[];
+}
+
+export interface CommitDiffAnalysis {
+  filesChanged: number;
+  additions: number;
+  deletions: number;
+  touchesTests: boolean;
+  touchesDocs: boolean;
+  touchesConfig: boolean;
+  topScopes: string[];
+  fileExtensions: string[];
+}
 
 export function createGitTools(cwd: string, config: AppConfig) {
   return {
@@ -312,17 +339,27 @@ export async function suggestCommit(cwd: string, config: AppConfig) {
     "--no-ext-diff",
     "--unified=0",
   ]);
-  const keywords = extractCommitKeywords(diffOutput);
+  const analysis = analyzeDiff(diffOutput);
+  const diffKeywords = extractCommitKeywords(diffOutput);
+  const analysisKeywords = analysis.topScopes.flatMap((scope) =>
+    tokenize(scope.replace(/\//g, " ")),
+  );
+  const keywords = dedupe([
+    ...diffKeywords,
+    ...analysisKeywords,
+    ...analysis.fileExtensions,
+    ...(analysis.touchesTests ? ["tests"] : []),
+    ...(analysis.touchesDocs ? ["docs"] : []),
+    ...(analysis.touchesConfig ? ["config"] : []),
+  ]).slice(0, 40);
 
   return {
     branch: status.branch,
     files,
-    message: suggestCommitMessage({
-      branchName: status.branch,
-      files,
-      style: config.commitStyle,
-      keywords,
-    }),
+    commitStyle: config.commitStyle,
+    keywords,
+    analysis,
+    note: "Use this context to synthesize a commit message; do not rely on tool-side heuristics.",
   };
 }
 
@@ -478,6 +515,85 @@ function dedupe(items: string[]): string[] {
   return [...new Set(items)];
 }
 
+export function analyzeDiff(diff: string): CommitDiffAnalysis {
+  const parsed = parseDiff(diff) as unknown as ParsedDiffFile[];
+  let additions = 0;
+  let deletions = 0;
+  const scopes = new Map<string, number>();
+  const extensions = new Set<string>();
+  let touchesTests = false;
+  let touchesDocs = false;
+  let touchesConfig = false;
+
+  for (const file of parsed) {
+    const currentPath = normalizedPath(file.to || file.from || "");
+    if (!currentPath) {
+      continue;
+    }
+
+    const lowerPath = currentPath.toLowerCase();
+
+    if (
+      lowerPath.includes("/test") ||
+      lowerPath.includes("/spec") ||
+      lowerPath.endsWith(".test.ts") ||
+      lowerPath.endsWith(".spec.ts")
+    ) {
+      touchesTests = true;
+    }
+
+    if (lowerPath.startsWith("docs/") || lowerPath.endsWith(".md")) {
+      touchesDocs = true;
+    }
+
+    if (
+      lowerPath.endsWith(".json") ||
+      lowerPath.includes("tsconfig") ||
+      lowerPath.includes("eslint") ||
+      lowerPath.includes("prettier") ||
+      lowerPath.endsWith(".yaml") ||
+      lowerPath.endsWith(".yml")
+    ) {
+      touchesConfig = true;
+    }
+
+    const ext = extensionToken(currentPath);
+    if (ext) {
+      extensions.add(ext);
+    }
+
+    const scope = pathScope(currentPath);
+    scopes.set(scope, (scopes.get(scope) ?? 0) + 1);
+
+    for (const chunk of file.chunks ?? []) {
+      for (const change of chunk.changes ?? []) {
+        if (change.type === "add") {
+          additions += 1;
+        }
+        if (change.type === "del") {
+          deletions += 1;
+        }
+      }
+    }
+  }
+
+  const topScopes = [...scopes.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([scope]) => scope);
+
+  return {
+    filesChanged: parsed.length,
+    additions,
+    deletions,
+    touchesTests,
+    touchesDocs,
+    touchesConfig,
+    topScopes,
+    fileExtensions: [...extensions].slice(0, 6),
+  };
+}
+
 function extractCommitKeywords(diff: string): string[] {
   const keywords = new Set<string>();
   const lines = diff.split("\n");
@@ -510,4 +626,26 @@ function tokenize(input: string): string[] {
     .replace(/["'`()[\]{}.,:;!?]/g, " ")
     .split(/[^a-z0-9_]+/)
     .filter((part) => part.length >= 4);
+}
+
+function normalizedPath(input: string): string {
+  return input.replace(/^a\//, "").replace(/^b\//, "").trim();
+}
+
+function pathScope(filePath: string): string {
+  const parts = filePath.split("/");
+  if (parts.length >= 2) {
+    return `${parts[0]}/${parts[1]}`;
+  }
+
+  return parts[0] || "root";
+}
+
+function extensionToken(filePath: string): string | null {
+  const ext = filePath.split(".").at(-1)?.toLowerCase();
+  if (!ext || ext === filePath.toLowerCase()) {
+    return null;
+  }
+
+  return ext.length >= 2 ? ext : null;
 }

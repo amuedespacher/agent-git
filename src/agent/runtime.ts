@@ -113,7 +113,7 @@ export class AgentRuntime {
         { name: "git_status", args: {} },
         false,
       )) as RepoSnapshot;
-      
+
       // Let the AI generate an initial greeting based on the repo state
       this.#messages.push(
         this.#message(
@@ -298,7 +298,7 @@ export class AgentRuntime {
       {
         name: "git_suggest_commit_message",
         description:
-          "Generate a commit message suggestion from staged changes, or unstaged changes when none are staged yet.",
+          "Collect commit context from staged changes (or unstaged when nothing is staged): files, diff analysis, and signals for AI commit synthesis.",
         risk: "safe",
         requiresConfirmation: false,
         inputSchema: gitTools.git_suggest_commit_message.schema,
