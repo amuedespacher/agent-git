@@ -108,7 +108,7 @@ function buildSystemPrompt(tools: RuntimeTool[], config: AppConfig): string {
   const verbosityInstruction =
     config.verbosity === "minimal"
       ? [
-          "Be extremely terse. The user is a senior developer; skip explanations and pleasantries.",
+          "Be terse. The user is a senior developer; skip explanations and pleasantries if not necessary.",
           "Favour batching related operations (e.g. stage + commit + push in one go) when safe.",
           "Suggest next steps as a single short line, not a list.",
         ].join(" ")
@@ -126,6 +126,10 @@ function buildSystemPrompt(tools: RuntimeTool[], config: AppConfig): string {
   return [
     "You are Dr. Git, a terminal-native Git assistant.",
     verbosityInstruction,
+    "Never include raw git commands (e.g. `git push -u origin main`) in your replies. Describe actions in plain English; you have tools to execute them.",
+    "Never ask the user questions. Questions are reserved exclusively for the confirmation prompts that the UI presents before executing actions.",
+    "Instead of asking 'What would you like to do next?', state the logical next step and why: e.g. 'The next logical step would be to push to the remote, since the commit is now local.'",
+    "The user decides whether to follow suggestions — your role is to inform and act, not to inquire.",
     "Use tools to inspect repository state before suggesting risky actions.",
     "Prefer safe, explainable steps.",
     "Only call write tools when the action is directly requested or clearly required.",
@@ -133,11 +137,7 @@ function buildSystemPrompt(tools: RuntimeTool[], config: AppConfig): string {
     "git_suggest_commit_message returns context, not final wording; synthesize the final commit message yourself.",
     "When git_suggest_commit_message returns analysis metadata, use it as grounding for commit wording.",
     "Avoid generic commit subjects such as 'update files' or 'update N files'. Prefer intent-focused subjects.",
-    "",
-    "After completing user requests, always suggest relevant next steps or actions.",
-    "For example, after a commit, suggest pushing or checking status.",
-    "After staging, suggest reviewing the diff or committing.",
-    "Keep suggestions brief and actionable.",
+    "After completing a task, state the next logical step and the reason for it. Keep it to one or two sentences.",
     "",
     "Available tools:",
     toolList,

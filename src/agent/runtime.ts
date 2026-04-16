@@ -740,39 +740,38 @@ export class AgentRuntime {
     // Generate human-friendly descriptions of tool actions
     switch (toolName) {
       case "git_commit":
-        return `Create commit with message: "${args.message}"?`;
+        return `Shall I create a commit with message: "${args.message}"?`;
       case "git_stage_all":
-        return "Stage all uncommitted changes?";
+        return "Shall I stage all uncommitted changes?";
       case "git_branch_create":
-        return `Create new branch "${args.name}"${args.checkout ? " and switch to it" : ""}?`;
+        return `Shall I create branch "${args.name}"${args.checkout ? " and switch to it" : ""}?`;
       case "git_checkout":
-        return `Switch to branch/commit "${args.target}"?`;
+        return `Shall I switch to "${args.target}"?`;
       case "git_branch_delete":
-        return `Delete branch "${args.name}"${args.force ? " (force)" : ""}?`;
+        return `Shall I delete branch "${args.name}"${args.force ? " (forced)" : ""}?`;
       case "git_merge":
-        return `Merge "${args.source}" into current branch?`;
+        return `Shall I merge "${args.source}" into the current branch?`;
       case "git_remote_set":
-        return `Set remote "${args.name ?? "origin"}" to URL "${args.url}"?`;
+        return `Shall I set the "${args.name ?? "origin"}" remote to "${args.url}"?`;
       case "git_remote_remove":
-        return `Remove remote "${args.name}"?`;
+        return `Shall I remove the "${args.name}" remote?`;
       case "git_push": {
         const remote = (args.remote as string | undefined) ?? "origin";
-        const branch = args.branch ? ` (branch: ${args.branch})` : "";
-        const flags = [
-          args.setUpstream && "-u",
-          args.force && "--force-with-lease",
-        ]
-          .filter(Boolean)
-          .join(" ");
-        return `Push to "${remote}"${branch}${flags ? ` ${flags}` : ""}?`;
+        const branch = args.branch ? ` the "${args.branch}" branch` : "";
+        const extras: string[] = [];
+        if (args.setUpstream) extras.push("set as upstream");
+        if (args.force) extras.push("force push");
+        const suffix = extras.length ? ` (${extras.join(", ")})` : "";
+        return `Shall I push${branch} to the "${remote}" remote${suffix}?`;
       }
       case "git_pull": {
         const remote = (args.remote as string | undefined) ?? "origin";
-        const branch = args.branch ? ` ${args.branch}` : "";
-        return `Pull from "${remote}"${branch}${args.rebase ? " (rebase)" : ""}?`;
+        const branch = args.branch ? ` "${args.branch}"` : "";
+        const method = args.rebase ? " using rebase" : "";
+        return `Shall I pull${branch} from the "${remote}" remote${method}?`;
       }
       default:
-        return `Execute ${toolName}?`;
+        return `Shall I run ${toolName}?`;
     }
   }
 
