@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 
-import type { ProviderDecision, RuntimeTool } from "../types.js";
+import type { AppConfig, ProviderDecision, RuntimeTool } from "../types.js";
 import type { AgentProvider, ProviderRequest } from "./provider.js";
 
 export class OpenAIProvider implements AgentProvider {
@@ -76,7 +76,7 @@ export async function testOpenAIConnection(options: {
 }
 
 function toOpenAIMessages(request: ProviderRequest) {
-  const systemPrompt = buildSystemPrompt(request.tools);
+  const systemPrompt = buildSystemPrompt(request.tools, request.config);
   return [
     { role: "system" as const, content: systemPrompt },
     ...request.messages
@@ -100,13 +100,32 @@ function toOpenAIMessages(request: ProviderRequest) {
   ];
 }
 
-function buildSystemPrompt(tools: RuntimeTool[]): string {
+function buildSystemPrompt(tools: RuntimeTool[], config: AppConfig): string {
   const toolList = tools
     .map((tool) => `- ${tool.name}: ${tool.description} (risk: ${tool.risk})`)
     .join("\n");
 
+  const verbosityInstruction =
+    config.verbosity === "minimal"
+      ? [
+          "Be extremely terse. The user is a senior developer; skip explanations and pleasantries.",
+          "Favour batching related operations (e.g. stage + commit + push in one go) when safe.",
+          "Suggest next steps as a single short line, not a list.",
+        ].join(" ")
+      : config.verbosity === "detailed"
+        ? [
+            "Be thorough and educational. The user may be new to Git.",
+            "Explain what each action does and why it is safe before executing.",
+            "After completing a task, give clear, step-by-step guidance on what to do next.",
+          ].join(" ")
+        : [
+            "Be concise but complete. Omit obvious context; include enough detail to be actionable.",
+            "Suggest 1-2 relevant next steps after each task.",
+          ].join(" ");
+
   return [
     "You are Dr. Git, a terminal-native Git assistant.",
+    verbosityInstruction,
     "Use tools to inspect repository state before suggesting risky actions.",
     "Prefer safe, explainable steps.",
     "Only call write tools when the action is directly requested or clearly required.",
