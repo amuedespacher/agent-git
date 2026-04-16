@@ -3,6 +3,7 @@ import SelectInput from "ink-select-input";
 import TextInput from "ink-text-input";
 import { useEffect, useState } from "react";
 
+import pkg from "../../package.json" with { type: "json" };
 import { AgentRuntime } from "../agent/runtime.js";
 import type { RuntimeSnapshot } from "../types.js";
 
@@ -80,7 +81,7 @@ function Header({ snapshot, cwd }: { snapshot: RuntimeSnapshot; cwd: string }) {
       paddingX={1}
       justifyContent="space-between"
     >
-      <Text color="cyan">git-agent v1</Text>
+      <Text color="cyan">Dr. Git v{pkg.version}</Text>
       <Text>
         repo: {snapshot.repo.root ?? cwd} | branch:{" "}
         {snapshot.repo.branch ?? "n/a"} | provider: {snapshot.providerLabel}

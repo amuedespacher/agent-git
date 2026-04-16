@@ -22,12 +22,12 @@ render(<App cwd={process.cwd()} />);
 function printHelp() {
   process.stdout.write(
     [
-      "git-agent",
+      "drgit",
       "",
       "Usage:",
-      "  git-agent",
-      "  git-agent --help",
-      "  git-agent --version",
+      "  drgit",
+      "  drgit --help",
+      "  drgit --version",
       "",
       "Run the interactive Git assistant from inside a repository.",
     ].join("\n") + "\n",

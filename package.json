@@ -1,10 +1,10 @@
 {
-  "name": "git-agent",
+  "name": "drgit",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "bin": {
-    "git-agent": "dist/index.js"
+    "drgit": "dist/index.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -12,7 +12,7 @@
     "install:cli": "npm run build && npm link",
     "start": "node dist/index.js",
     "test": "vitest run",
-    "unlink:cli": "npm unlink -g git-agent"
+    "unlink:cli": "npm unlink -g drgit"
   },
   "dependencies": {
     "cosmiconfig": "^9.0.0",

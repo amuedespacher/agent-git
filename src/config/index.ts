@@ -48,12 +48,12 @@ const configSchema = z.object({
 export const defaultConfig: AppConfig = configSchema.parse({});
 
 export function getUserConfigPath(): string {
-  return path.join(os.homedir(), ".git-agent", "config.json");
+  return path.join(os.homedir(), ".drgit", "config.json");
 }
 
 export async function loadConfig(cwd: string): Promise<AppConfig> {
   const userConfig = await loadUserConfig();
-  const explorer = cosmiconfig("git-agent");
+  const explorer = cosmiconfig("drgit");
   const result = await explorer.search(cwd);
 
   return mergeConfigLayers(defaultConfig, userConfig, result?.config);

@@ -118,7 +118,7 @@ export class AgentRuntime {
       this.#messages.push(
         this.#message(
           "user",
-          "I just initialized git-agent in this repository. Based on the current status, give me an informative greeting and suggest what I should do next.",
+          "I just initialized Dr. Git in this repository. Based on the current status, give me an informative greeting and suggest what I should do next.",
         ),
       );
       await this.#runAgentLoop();

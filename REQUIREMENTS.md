@@ -34,7 +34,7 @@ The system follows a simple but powerful model:
 The user runs:
 
 ```
-git-agent
+drgit
 ```
 
 This opens an interactive terminal UI.
