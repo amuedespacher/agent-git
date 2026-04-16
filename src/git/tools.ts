@@ -287,6 +287,16 @@ export async function suggestCommit(cwd: string, config: AppConfig) {
   // can still suggest a meaningful message before auto-staging on commit.
   const files =
     status.stagedFiles.length > 0 ? status.stagedFiles : status.unstagedFiles;
+  const usingStagedChanges = status.stagedFiles.length > 0;
+  const diffOutput = await runGit(cwd, [
+    "diff",
+    ...(usingStagedChanges ? ["--cached"] : []),
+    "--patch",
+    "--no-ext-diff",
+    "--unified=0",
+  ]);
+  const keywords = extractCommitKeywords(diffOutput);
+
   return {
     branch: status.branch,
     files,
@@ -294,6 +304,7 @@ export async function suggestCommit(cwd: string, config: AppConfig) {
       branchName: status.branch,
       files,
       style: config.commitStyle,
+      keywords,
     }),
   };
 }
@@ -443,4 +454,38 @@ function splitLines(text: string): string[] {
 
 function dedupe(items: string[]): string[] {
   return [...new Set(items)];
+}
+
+function extractCommitKeywords(diff: string): string[] {
+  const keywords = new Set<string>();
+  const lines = diff.split("\n");
+
+  for (const line of lines) {
+    if (
+      line.startsWith("+++") ||
+      line.startsWith("---") ||
+      line.startsWith("@@") ||
+      (!line.startsWith("+") && !line.startsWith("-"))
+    ) {
+      continue;
+    }
+
+    const content = line.slice(1);
+    for (const token of tokenize(content)) {
+      keywords.add(token);
+      if (keywords.size >= 20) {
+        return [...keywords];
+      }
+    }
+  }
+
+  return [...keywords];
+}
+
+function tokenize(input: string): string[] {
+  return input
+    .toLowerCase()
+    .replace(/["'`()[\]{}.,:;!?]/g, " ")
+    .split(/[^a-z0-9_]+/)
+    .filter((part) => part.length >= 4);
 }

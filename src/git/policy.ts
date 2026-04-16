@@ -13,6 +13,7 @@ export interface CommitSuggestionInput {
   branchName?: string;
   files: string[];
   style: CommitStyle;
+  keywords?: string[];
 }
 
 export function slugifyBranchName(input: string): string {
@@ -53,7 +54,7 @@ export function validateBranchName(
 export function suggestCommitMessage(input: CommitSuggestionInput): string {
   const normalizedFiles = input.files.map((file) => file.toLowerCase());
   const type = inferCommitType(normalizedFiles, input.branchName);
-  const subject = inferSubject(input.files);
+  const subject = inferSubject(input.files, input.keywords ?? []);
 
   if (input.style === "sentence") {
     return capitalize(`${type === "docs" ? "document" : "update"} ${subject}`);
@@ -88,7 +89,12 @@ function inferCommitType(files: string[], branchName?: string): string {
   return "chore";
 }
 
-function inferSubject(files: string[]): string {
+function inferSubject(files: string[], keywords: string[]): string {
+  const keywordSubject = inferSubjectFromKeywords(keywords);
+  if (keywordSubject) {
+    return keywordSubject;
+  }
+
   if (files.length === 0) {
     return "update staged changes";
   }
@@ -101,7 +107,40 @@ function inferSubject(files: string[]): string {
     return `update ${describeFile(files[0])} and ${describeFile(files[1])}`;
   }
 
+  if (files.length <= 4) {
+    const subjects = files.map(describeFile);
+    const head = subjects.slice(0, -1).join(", ");
+    const tail = subjects.at(-1);
+    return `update ${head}, and ${tail}`;
+  }
+
   return `update ${files.length} files`;
+}
+
+function inferSubjectFromKeywords(keywords: string[]): string | null {
+  const set = new Set(keywords.map((word) => word.toLowerCase()));
+  const hasAny = (...terms: string[]) => terms.some((term) => set.has(term));
+
+  if (
+    hasAny("stage", "staged", "staging", "git_stage_all") &&
+    hasAny("suggest", "suggestion", "message", "messages", "commit")
+  ) {
+    return "improve commit staging and message suggestions";
+  }
+
+  if (hasAny("stage", "staged", "staging", "git_stage_all")) {
+    return "improve staging flow";
+  }
+
+  if (hasAny("suggest", "suggestion", "message", "messages")) {
+    return "improve commit message suggestions";
+  }
+
+  if (hasAny("status", "diff", "porcelain")) {
+    return "improve git status and diff handling";
+  }
+
+  return null;
 }
 
 function describeFile(file: string): string {

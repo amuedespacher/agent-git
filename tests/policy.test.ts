@@ -34,6 +34,37 @@ describe("suggestCommitMessage", () => {
 
     expect(message).toBe("feat: update runtime");
   });
+
+  it("generates descriptive message for staging and suggestion improvements", () => {
+    const message = suggestCommitMessage({
+      branchName: "feature/openai-integration",
+      files: [
+        "src/agent/heuristicProvider.ts",
+        "src/agent/runtime.ts",
+        "src/git/tools.ts",
+      ],
+      style: "conventional",
+      keywords: ["staged", "git_stage_all", "suggest", "message", "commit"],
+    });
+
+    expect(message).toBe(
+      "feat: improve commit staging and message suggestions",
+    );
+  });
+
+  it("lists file subjects instead of generic count for small multi-file commits", () => {
+    const message = suggestCommitMessage({
+      branchName: "feature/openai-integration",
+      files: [
+        "src/agent/heuristicProvider.ts",
+        "src/agent/runtime.ts",
+        "src/git/tools.ts",
+      ],
+      style: "conventional",
+    });
+
+    expect(message).toBe("feat: update heuristicProvider, runtime, and tools");
+  });
 });
 
 describe("parsePorcelainV2", () => {
