@@ -275,6 +275,8 @@ export async function suggestCommit(cwd: string, config: AppConfig) {
 }
 
 export async function commit(cwd: string, message: string) {
+  // Stage all changes before committing
+  await runGit(cwd, ["add", "."]);
   const output = await runGit(cwd, ["commit", "-m", message]);
   return { message, output };
 }
