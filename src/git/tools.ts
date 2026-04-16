@@ -10,7 +10,7 @@ const diffArgsSchema = z.object({
 });
 
 const logArgsSchema = z.object({
-  limit: z.number().int().positive().max(20).default(5),
+  limit: z.number().int().positive().max(200).default(5),
 });
 
 const branchValidationArgsSchema = z.object({
@@ -64,7 +64,7 @@ export function createGitTools(cwd: string, config: AppConfig) {
       schema: logArgsSchema,
       jsonSchema: {
         type: "object",
-        properties: { limit: { type: "number" } },
+        properties: { limit: { type: "number", minimum: 1, maximum: 200 } },
         additionalProperties: false,
       },
       execute: async (args: Record<string, unknown>) => {
@@ -85,7 +85,7 @@ export function createGitTools(cwd: string, config: AppConfig) {
       schema: logArgsSchema,
       jsonSchema: {
         type: "object",
-        properties: { limit: { type: "number" } },
+        properties: { limit: { type: "number", minimum: 1, maximum: 200 } },
         additionalProperties: false,
       },
       execute: async (args: Record<string, unknown>) => {

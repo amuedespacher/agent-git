@@ -432,15 +432,15 @@ export class AgentRuntime {
       throw new Error(`Tool '${call.name}' is not registered.`);
     }
 
-    const validatedArgs = validateArgs(tool.inputSchema, call.args);
-    this.#recordToolEvent(
-      tool.name,
-      "started",
-      JSON.stringify(validatedArgs),
-      tool.risk,
-    );
-
     try {
+      const validatedArgs = validateArgs(tool.inputSchema, call.args);
+      this.#recordToolEvent(
+        tool.name,
+        "started",
+        JSON.stringify(validatedArgs),
+        tool.risk,
+      );
+
       const result = await tool.execute(validatedArgs);
       const serialized = JSON.stringify(result);
       this.#messages.push({
