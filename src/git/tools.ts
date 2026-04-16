@@ -185,6 +185,8 @@ export async function getStatus(
     branchValid: branchValidation?.valid,
     branchValidationMessage: branchValidation?.message,
     branchSuggestion: branchValidation?.suggestion,
+    stagedFiles: parsed.stagedFiles,
+    unstagedFiles: parsed.unstagedFiles,
   };
 }
 
@@ -261,8 +263,11 @@ export async function validateBranch(
 
 export async function suggestCommit(cwd: string, config: AppConfig) {
   const status = await getStatus(cwd, config);
-  const changedFiles = await runGit(cwd, ["diff", "--cached", "--name-only"]);
-  const files = changedFiles.split("\n").filter(Boolean);
+  // Prefer staged files for partial-commit workflows.
+  // If nothing is staged yet, fall back to unstaged files so the assistant
+  // can still suggest a meaningful message before auto-staging on commit.
+  const files =
+    status.stagedFiles.length > 0 ? status.stagedFiles : status.unstagedFiles;
   return {
     branch: status.branch,
     files,
@@ -275,8 +280,8 @@ export async function suggestCommit(cwd: string, config: AppConfig) {
 }
 
 export async function commit(cwd: string, message: string) {
-  // Stage all changes before committing
-  await runGit(cwd, ["add", "."]);
+  // Always stage all changes immediately before commit.
+  await runGit(cwd, ["add", "--all"]);
   const output = await runGit(cwd, ["commit", "-m", message]);
   return { message, output };
 }
@@ -306,6 +311,8 @@ export interface ParsedPorcelainStatus {
   unstaged: number;
   untracked: number;
   conflicted: number;
+  stagedFiles: string[];
+  unstagedFiles: string[];
 }
 
 export function parsePorcelainV2(output: string): ParsedPorcelainStatus {
@@ -316,6 +323,8 @@ export function parsePorcelainV2(output: string): ParsedPorcelainStatus {
     unstaged: 0,
     untracked: 0,
     conflicted: 0,
+    stagedFiles: [],
+    unstagedFiles: [],
   };
 
   for (const line of output.split("\n")) {
@@ -350,6 +359,11 @@ export function parsePorcelainV2(output: string): ParsedPorcelainStatus {
 
     if (line.startsWith("u ")) {
       state.conflicted += 1;
+      const parts = line.split("\t");
+      const filePath = parts[1];
+      if (filePath) {
+        state.unstagedFiles.push(filePath);
+      }
       continue;
     }
 
@@ -358,13 +372,21 @@ export function parsePorcelainV2(output: string): ParsedPorcelainStatus {
       const xy = tokens[1] ?? "..";
       const stagedCode = xy[0] ?? ".";
       const unstagedCode = xy[1] ?? ".";
+      const parts = line.split("\t");
+      const filePath = parts[1];
 
       if (stagedCode !== ".") {
         state.staged += 1;
+        if (filePath) {
+          state.stagedFiles.push(filePath);
+        }
       }
 
       if (unstagedCode !== ".") {
         state.unstaged += 1;
+        if (filePath && !state.unstagedFiles.includes(filePath)) {
+          state.unstagedFiles.push(filePath);
+        }
       }
     }
   }

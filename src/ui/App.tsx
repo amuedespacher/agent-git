@@ -3,7 +3,7 @@ import TextInput from "ink-text-input";
 import { useEffect, useState } from "react";
 
 import { AgentRuntime } from "../agent/runtime.js";
-import type { RuntimeSnapshot, ToolEvent } from "../types.js";
+import type { RuntimeSnapshot } from "../types.js";
 
 interface AppProps {
   cwd: string;
@@ -80,10 +80,6 @@ function Sidebar({ snapshot }: { snapshot: RuntimeSnapshot }) {
       >
         <Text color="green">Repo State</Text>
         <Text>clean: {repo.clean ? "yes" : "no"}</Text>
-        <Text>staged: {repo.staged}</Text>
-        <Text>unstaged: {repo.unstaged}</Text>
-        <Text>untracked: {repo.untracked}</Text>
-        <Text>conflicted: {repo.conflicted}</Text>
         <Text>
           divergence: +{repo.ahead} / -{repo.behind}
         </Text>
@@ -93,52 +89,60 @@ function Sidebar({ snapshot }: { snapshot: RuntimeSnapshot }) {
       </Box>
       <Box
         borderStyle="round"
-        borderColor="magenta"
-        paddingX={1}
-        flexDirection="column"
-        marginTop={1}
-      >
-        <Text color="magenta">Review</Text>
-        {snapshot.pendingApproval ? (
-          <>
-            <Text>{snapshot.pendingApproval.summary}</Text>
-            <Text color="yellow">Reply with y or n</Text>
-          </>
-        ) : (
-          <Text>No guarded action pending.</Text>
-        )}
-      </Box>
-      <Box
-        borderStyle="round"
         borderColor="blue"
         paddingX={1}
         flexDirection="column"
         marginTop={1}
       >
-        <Text color="blue">Recent Tools</Text>
-        {snapshot.toolEvents.length === 0 ? (
-          <Text>No tool activity yet.</Text>
+        <Text color="blue">Changed Files</Text>
+        {repo.staged === 0 && repo.unstaged === 0 ? (
+          <Text color="gray">No changes</Text>
         ) : (
-          snapshot.toolEvents
-            .slice(-5)
-            .map((event) => <ToolEventLine key={event.id} event={event} />)
+          <>
+            {repo.staged > 0 && (
+              <>
+                <Text color="green">Staged ({repo.staged})</Text>
+                {repo.stagedFiles.slice(0, 5).map((file) => (
+                  <Text key={file} color="green">
+                    + {file}
+                  </Text>
+                ))}
+                {repo.staged > 5 && (
+                  <Text color="green">... +{repo.staged - 5} more</Text>
+                )}
+              </>
+            )}
+            {repo.unstaged > 0 && (
+              <>
+                <Text color="yellow">Unstaged ({repo.unstaged})</Text>
+                {repo.unstagedFiles.slice(0, 5).map((file) => (
+                  <Text key={file} color="yellow">
+                    ~ {file}
+                  </Text>
+                ))}
+                {repo.unstaged > 5 && (
+                  <Text color="yellow">... ~{repo.unstaged - 5} more</Text>
+                )}
+              </>
+            )}
+          </>
         )}
       </Box>
+      {snapshot.pendingApproval && (
+        <Box
+          borderStyle="round"
+          borderColor="magenta"
+          paddingX={1}
+          flexDirection="column"
+          marginTop={1}
+        >
+          <Text color="magenta">Pending Approval</Text>
+          <Text>{snapshot.pendingApproval.summary}</Text>
+          <Text color="yellow">Reply with y or n</Text>
+        </Box>
+      )}
     </Box>
   );
-}
-
-function ToolEventLine({ event }: { event: ToolEvent }) {
-  const color =
-    event.status === "failed"
-      ? "red"
-      : event.status === "pending-approval"
-        ? "yellow"
-        : event.status === "completed"
-          ? "green"
-          : "white";
-
-  return <Text color={color}>{`${event.toolName}: ${event.status}`}</Text>;
 }
 
 function MainPanel({ snapshot }: { snapshot: RuntimeSnapshot }) {
@@ -155,7 +159,7 @@ function MainPanel({ snapshot }: { snapshot: RuntimeSnapshot }) {
       flexDirection="column"
     >
       <Text color="white">Chat</Text>
-      {snapshot.messages.slice(-12).map((message) => {
+      {snapshot.messages.slice(-10).map((message) => {
         const color =
           message.role === "assistant"
             ? "cyan"
@@ -171,6 +175,12 @@ function MainPanel({ snapshot }: { snapshot: RuntimeSnapshot }) {
           </Box>
         );
       })}
+      {snapshot.pendingApproval && (
+        <Box marginTop={1}>
+          <Text color="magenta">pending: </Text>
+          <Text>{snapshot.pendingApproval.summary}</Text>
+        </Box>
+      )}
     </Box>
   );
 }

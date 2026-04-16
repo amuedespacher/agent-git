@@ -36,6 +36,8 @@ export interface RepoSnapshot {
   branchValid?: boolean;
   branchValidationMessage?: string;
   branchSuggestion?: string;
+  stagedFiles: string[];
+  unstagedFiles: string[];
 }
 
 export interface ChatMessage {

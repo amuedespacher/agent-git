@@ -39,6 +39,8 @@ const emptyRepo: RepoSnapshot = {
   untracked: 0,
   conflicted: 0,
   clean: true,
+  stagedFiles: [],
+  unstagedFiles: [],
 };
 
 const defaultOpenAISetup: OpenAISetupState = {
