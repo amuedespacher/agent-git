@@ -1,4 +1,5 @@
 import { Box, Text, useApp } from "ink";
+import SelectInput from "ink-select-input";
 import TextInput from "ink-text-input";
 import { useEffect, useState } from "react";
 
@@ -14,12 +15,17 @@ export function App({ cwd }: AppProps) {
   const [runtime] = useState(() => new AgentRuntime(cwd));
   const [snapshot, setSnapshot] = useState<RuntimeSnapshot>(runtime.snapshot);
   const [input, setInput] = useState("");
+  const [showApprovalPrompt, setShowApprovalPrompt] = useState(false);
 
   useEffect(() => {
     const unsubscribe = runtime.subscribe(setSnapshot);
     void runtime.initialize();
     return unsubscribe;
   }, [runtime]);
+
+  useEffect(() => {
+    setShowApprovalPrompt(Boolean(snapshot.pendingApproval));
+  }, [snapshot.pendingApproval]);
 
   const submit = async () => {
     const value = input;
@@ -29,6 +35,15 @@ export function App({ cwd }: AppProps) {
       return;
     }
     await runtime.submit(value);
+    setShowApprovalPrompt(false);
+  };
+
+  const handleApprovalSelect = async (item: {
+    label: string;
+    value: string;
+  }) => {
+    setShowApprovalPrompt(false);
+    await runtime.submit(item.value);
   };
 
   return (
@@ -38,14 +53,21 @@ export function App({ cwd }: AppProps) {
         <Sidebar snapshot={snapshot} />
         <MainPanel snapshot={snapshot} />
       </Box>
-      <Footer
-        input={input}
-        onChange={setInput}
-        onSubmit={submit}
-        pendingApproval={Boolean(snapshot.pendingApproval)}
-        busy={snapshot.busy}
-        awaitingOpenAIKey={snapshot.openAISetup.awaitingKey}
-      />
+      {showApprovalPrompt && snapshot.pendingApproval ? (
+        <ApprovalPrompt
+          approval={snapshot.pendingApproval}
+          onSelect={handleApprovalSelect}
+        />
+      ) : (
+        <Footer
+          input={input}
+          onChange={setInput}
+          onSubmit={submit}
+          pendingApproval={Boolean(snapshot.pendingApproval)}
+          busy={snapshot.busy}
+          awaitingOpenAIKey={snapshot.openAISetup.awaitingKey}
+        />
+      )}
     </Box>
   );
 }
@@ -169,15 +191,6 @@ function MainPanel({ snapshot }: { snapshot: RuntimeSnapshot }) {
                     : message.content}
                 </Text>
               </Box>
-              {message.options && message.options.length > 0 && (
-                <Box marginTop={0} marginLeft={2} flexDirection="column">
-                  {message.options.map((option, idx) => (
-                    <Text key={option.value} color="yellow">
-                      [{idx + 1}] {option.label}
-                    </Text>
-                  ))}
-                </Box>
-              )}
             </Box>
           );
         })}
@@ -243,11 +256,7 @@ function Footer({
   busy: boolean;
   awaitingOpenAIKey: boolean;
 }) {
-  const prompt = awaitingOpenAIKey
-    ? "openai-key> "
-    : pendingApproval
-      ? "choose> "
-      : "chat> ";
+  const prompt = awaitingOpenAIKey ? "openai-key> " : "chat> ";
 
   return (
     <Box borderStyle="round" borderColor="cyan" marginTop={1} paddingX={1}>
@@ -263,6 +272,43 @@ function Footer({
           {busy ? "working" : "ready"}
         </Text>
       </Box>
+    </Box>
+  );
+}
+
+interface ApprovalOption {
+  label: string;
+  value: string;
+}
+
+function ApprovalPrompt({
+  approval,
+  onSelect,
+}: {
+  approval: {
+    summary: string;
+  };
+  onSelect: (option: ApprovalOption) => Promise<void>;
+}) {
+  const options: ApprovalOption[] = [
+    { label: "Yes, proceed", value: "y" },
+    { label: "No, cancel", value: "n" },
+  ];
+
+  return (
+    <Box
+      borderStyle="round"
+      borderColor="yellow"
+      marginTop={1}
+      paddingX={1}
+      flexDirection="column"
+    >
+      <Text color="yellow">▶ {approval.summary}</Text>
+      <SelectInput
+        items={options}
+        onSelect={onSelect}
+        indicatorComponent={() => <Text>› </Text>}
+      />
     </Box>
   );
 }
