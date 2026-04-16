@@ -31,6 +31,7 @@ const configSchema = z.object({
   branchPattern: z
     .string()
     .min(1)
+    .max(200)
     .default("^(feature|fix|chore|docs|refactor|test)/[a-z0-9._-]+$"),
   safetyLevel: z.enum(["strict", "balanced", "permissive"]).default("balanced"),
   verbosity: z.enum(["minimal", "normal", "detailed"]).default("normal"),

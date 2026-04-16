@@ -26,7 +26,16 @@ export function validateBranchName(
     };
   }
 
-  const matcher = new RegExp(pattern);
+  let matcher: RegExp;
+  try {
+    matcher = new RegExp(pattern);
+  } catch {
+    return {
+      valid: false,
+      pattern,
+      message: `Branch policy pattern is invalid: ${pattern}`,
+    };
+  }
   const valid = matcher.test(branchName);
 
   if (valid) {

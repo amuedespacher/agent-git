@@ -82,7 +82,7 @@ export class AgentRuntime {
       pendingApproval: this.#pendingApproval,
       busy: this.#busy,
       mode: this.#mode,
-      config: this.#config ?? defaultConfig,
+      config: redactConfig(this.#config ?? defaultConfig),
       providerLabel: this.#provider?.label ?? "not ready",
       openAISetup: this.#openAISetup,
     };
@@ -308,8 +308,8 @@ export class AgentRuntime {
       {
         name: "git_stage_all",
         description: "Stage all tracked and untracked changes.",
-        risk: "safe",
-        requiresConfirmation: false,
+        risk: "low",
+        requiresConfirmation: true,
         inputSchema: gitTools.git_stage_all.schema,
         jsonSchema: gitTools.git_stage_all.jsonSchema,
         execute: gitTools.git_stage_all.execute,
@@ -806,6 +806,13 @@ function validateArgs(
   }
 
   return args;
+}
+
+function redactConfig(config: AppConfig): AppConfig {
+  return {
+    ...config,
+    provider: { ...config.provider, apiKey: undefined },
+  };
 }
 
 function summarizeToolResult(result: unknown): string {

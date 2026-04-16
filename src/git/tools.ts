@@ -515,8 +515,6 @@ export async function stageAll(cwd: string) {
 }
 
 export async function commit(cwd: string, message: string) {
-  // Always stage all changes immediately before commit.
-  await runGit(cwd, ["add", "--all"]);
   const output = await runGit(cwd, ["commit", "-m", message]);
   return { message, output };
 }
