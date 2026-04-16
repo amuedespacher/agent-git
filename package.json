@@ -9,8 +9,10 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsx src/index.tsx",
+    "install:cli": "npm run build && npm link",
     "start": "node dist/index.js",
-    "test": "vitest run"
+    "test": "vitest run",
+    "unlink:cli": "npm unlink -g git-agent"
   },
   "dependencies": {
     "cosmiconfig": "^9.0.0",

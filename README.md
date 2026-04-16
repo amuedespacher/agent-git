@@ -16,10 +16,18 @@
 
 ```bash
 npm install
-npm run build
+npm run install:cli
 ```
 
+This links the local package onto your shell `PATH` so the `git-agent` command works directly.
+
 Run the app from inside any repository:
+
+```bash
+git-agent
+```
+
+If you prefer not to link a global command, run it directly from the project:
 
 ```bash
 npm start
@@ -33,6 +41,8 @@ npm run dev
 
 ## Commands
 
+- `git-agent --help` shows CLI usage
+- `git-agent --version` prints the installed version
 - `/help` shows available chat patterns and slash commands
 - `/settings` opens the settings panel
 - `/chat` returns to the chat panel
@@ -42,7 +52,7 @@ When a guarded tool is pending, answer with `y` or `n`.
 
 ## Configuration
 
-Configuration is loaded with `cosmiconfig` from `git-agent.config.json`, `git-agent.config.cjs`, or the `git-agent` key in `package.json`.
+Configuration is loaded with `cosmiconfig` from `git-agent.config.json`, `git-agent.config.cjs`, or the `git-agent` key in `package.json`. User-level OpenAI credentials are stored in `~/.git-agent/config.json`.
 
 Example:
 
