@@ -756,6 +756,7 @@ export class AgentRuntime {
       case "git_remote_remove":
         return `Remove remote "${args.name}"?`;
       case "git_push": {
+        const remote = (args.remote as string | undefined) ?? "origin";
         const branch = args.branch ? ` (branch: ${args.branch})` : "";
         const flags = [
           args.setUpstream && "-u",
@@ -763,11 +764,12 @@ export class AgentRuntime {
         ]
           .filter(Boolean)
           .join(" ");
-        return `Push to "${args.remote}"${branch}${flags ? ` ${flags}` : ""}?`;
+        return `Push to "${remote}"${branch}${flags ? ` ${flags}` : ""}?`;
       }
       case "git_pull": {
+        const remote = (args.remote as string | undefined) ?? "origin";
         const branch = args.branch ? ` ${args.branch}` : "";
-        return `Pull from "${args.remote}"${branch}${args.rebase ? " (rebase)" : ""}?`;
+        return `Pull from "${remote}"${branch}${args.rebase ? " (rebase)" : ""}?`;
       }
       default:
         return `Execute ${toolName}?`;
