@@ -34,13 +34,13 @@ describe("mergeConfigLayers", () => {
       },
       {
         provider: {
-          model: "gpt-4.1",
+          model: "gpt-5.4-nano",
         },
       },
     );
 
     expect(merged.provider.kind).toBe("openai");
-    expect(merged.provider.model).toBe("gpt-4.1");
+    expect(merged.provider.model).toBe("gpt-5.4-nano");
     expect(merged.provider.apiKey).toBe("saved-key");
   });
 

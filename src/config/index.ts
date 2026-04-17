@@ -7,7 +7,7 @@ import { z } from "zod";
 
 import type { AppConfig } from "../types.js";
 
-export const defaultOpenAIModel = "gpt-4.1-mini";
+export const defaultOpenAIModel = "gpt-5.4-nano";
 
 type ConfigInput = Partial<AppConfig> & {
   provider?: Partial<AppConfig["provider"]>;

@@ -110,7 +110,7 @@ Configuration is resolved via [`cosmiconfig`](https://github.com/cosmiconfig/cos
 {
   "provider": {
     "kind": "openai",
-    "model": "gpt-4.1-mini"
+    "model": "gpt-5.4-nano"
   },
   "commitStyle": "conventional",
   "branchPattern": "^(feature|fix|chore|docs|refactor|test)/[a-z0-9._-]+$",

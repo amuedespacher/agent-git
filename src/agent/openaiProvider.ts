@@ -141,6 +141,7 @@ function buildSystemPrompt(tools: RuntimeTool[], config: AppConfig): string {
     "",
     "Available tools:",
     toolList,
+    "Always respond with text, not with markdown or code blocks.",
   ].join("\n");
 }
 
